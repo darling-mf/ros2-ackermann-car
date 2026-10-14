@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+
+
+    <!-- 根节点（地面投影） -->
+    <link name="base_footprint"/>
+
+    <!-- 把 base_link 放到车轮轴的高度，确保车轮刚好接触地面 -->
+    <joint name="base_joint" type="fixed">
+        <parent link="base_footprint"/>
+        <child link="base_link"/>
+        <origin xyz="0 0 ${chassis_z_offset}" rpy="0 0 0"/>
+    </joint>
+
+    <!-- 车身主体 -->
+    <link name="base_link">
+        <visual>
+             <!-- 视觉偏移：让底盘中心处于底盘几何中心，而不是轴心（因为底盘比车轴高一点点） -->
+            <origin xyz="0 0 ${chassis_height/2}" rpy="0 0 0"/>
+            <geometry><box size="${chassis_length} ${chassis_width} ${chassis_height}"/></geometry>
+            <material name="blue"/>
+        </visual>
+        <collision>
+            <origin xyz="0 0 ${chassis_height/2}" rpy="0 0 0"/>
+            <geometry><box size="${chassis_length} ${chassis_width} ${chassis_height}"/></geometry>
+        </collision>
+        <!-- 底盘质量和惯性矩阵 -->
+        <xacro:box_inertia m="${chassis_mass}" x="${chassis_length}" y="${chassis_width}" z="${chassis_height}"/>
+    </link>
+
+</robot>

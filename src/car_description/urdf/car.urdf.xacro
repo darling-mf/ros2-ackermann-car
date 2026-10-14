@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="ackermann_car">
+
+    <!-- 统一定义一次参数与材质 -->
+    <xacro:include filename="common.xacro"/>
+    <!-- 引入车身模块 -->
+    <xacro:include filename="chassis.xacro"/>
+    
+    <!-- 引入车轮模块 -->
+    <xacro:include filename="wheels.xacro"/>
+
+</robot>

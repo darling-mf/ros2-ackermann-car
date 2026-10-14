@@ -1,0 +1,80 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- ================= 1. 后轮驱动系统（后轮转向和滚动） ================= -->
+    <!--prefix:部件名字前缀，y_reflect:左右镜像标志，1表示左轮，-1表示右轮-->
+
+    <xacro:macro name="rear_wheel" params="prefix y_reflect">
+        <link name="${prefix}_wheel_link">
+            <visual>
+                <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+                <material name="black"/>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+            </collision>
+            <!-- 惯性矩阵 -->
+            <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" l="${wheel_width}"/>
+        </link>
+
+        <!-- 后轮驱动关节（连续旋转） -->
+        <joint name="${prefix}_wheel_joint" type="continuous">
+            <parent link="base_link"/>
+            <child link="${prefix}_wheel_link"/>
+            <!-- 后轮位置：轴距的一半（负X轴），轮距的一半（Y轴镜像） -->
+            <origin xyz="${-wheelbase/2} ${y_reflect * track/2} 0" rpy="1.5707 0 0"/>
+            <axis xyz="0 0 1"/>
+        </joint>
+    </xacro:macro>
+    <!--左右后轮-->
+    <xacro:rear_wheel prefix="left_rear" y_reflect="1"/>
+    <xacro:rear_wheel prefix="right_rear" y_reflect="-1"/>
+
+    <!-- ================= 2. 前轮转向系统（阿克曼转向） ================= -->
+    <xacro:macro name="front_steering_wheel" params="prefix y_reflect">
+        <!-- 转向节（作为转向电机和车轮的中间连接件） -->
+        <link name="${prefix}_steer_link">
+            <visual>
+                <geometry><cylinder radius="0.01" length="0.02"/></geometry>
+                <material name="red"/>
+            </visual>
+            <inertial><mass value="0.1"/><inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/></inertial>
+        </link>
+
+        <!-- 转向关节（绕Z轴旋转，对应舵机） -->
+        <joint name="${prefix}_steer_joint" type="revolute">
+            <parent link="base_link"/>
+            <child link="${prefix}_steer_link"/>
+            <!-- 前轮位置：轴距的一半（正X轴） -->
+            <origin xyz="${wheelbase/2} ${y_reflect * track/2} 0" rpy="0 0 0"/>
+            <axis xyz="0 0 1"/>
+            <!-- 限制最大转向角度：根据最小转弯半径0.55m和轴距0.112m计算，最大转角约0.2rad (约11.5度) -->
+            <limit effort="10" lower="-0.3" upper="0.3" velocity="1.0"/> 
+        </joint>
+
+        <!-- 前轮轮子 -->
+        <link name="${prefix}_wheel_link">
+            <visual>
+                <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+                <material name="black"/>
+            </visual>
+            <collision>
+                <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+            </collision>
+            <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" l="${wheel_width}"/>
+        </link>
+
+        <!-- 前轮滚动关节（连续旋转） -->
+        <joint name="${prefix}_wheel_joint" type="continuous">
+            <parent link="${prefix}_steer_link"/>
+            <child link="${prefix}_wheel_link"/>
+            <origin xyz="0 0 0" rpy="1.5707 0 0"/>
+            <axis xyz="0 0 1"/>
+        </joint>
+    </xacro:macro>
+
+    <xacro:front_steering_wheel prefix="left_front" y_reflect="1"/>
+    <xacro:front_steering_wheel prefix="right_front" y_reflect="-1"/>
+
+</robot>

@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- ================= 机械尺寸参数（单位：米） ================= -->
+    <!-- 底盘尺寸：230x187.6x67mm -->
+    <xacro:property name="chassis_length" value="0.230"/>
+    <xacro:property name="chassis_width" value="0.1876"/>
+    <xacro:property name="chassis_height" value="0.067"/>
+
+    <!-- 轴距与轮距（从图纸提取：轴距112mm，轮距164mm） -->
+    <xacro:property name="wheelbase" value="0.112"/>
+    <xacro:property name="track" value="0.164"/>
+    
+    <!-- 车轮尺寸：直径49mm，宽度45mm -->
+    <xacro:property name="wheel_radius" value="0.0245"/>
+    <xacro:property name="wheel_width" value="0.045"/>
+
+    <!-- ================= 质量参数（总重0.9kg） ================= -->
+    <xacro:property name="chassis_mass" value="0.8"/> <!-- 底盘重0.8kg -->
+    <xacro:property name="wheel_mass" value="0.025"/> <!-- 每个轮子0.025kg，4个合计0.1kg -->
+
+    <!-- 底盘离地高度（让车轮刚好接触地面） -->
+    <xacro:property name="chassis_z_offset" value="0.0245"/> 
+
+    <!-- ================= 材质定义 ================= -->
+    <material name="blue"><color rgba="0 0 1 1"/></material>
+    <material name="black"><color rgba="0 0 0 1"/></material>
+    <material name="red"><color rgba="1 0 0 1"/></material>
+
+    <!-- ================= 惯性矩阵宏 ================= -->
+    <xacro:macro name="box_inertia" params="m x y z">
+        <inertial>
+            <mass value="${m}"/>
+            <inertia ixx="${m*(y*y+z*z)/12}" ixy="0" ixz="0" 
+                     iyy="${m*(x*x+z*z)/12}" iyz="0" 
+                     izz="${m*(x*x+y*y)/12}"/>
+        </inertial>
+    </xacro:macro>
+
+    <xacro:macro name="cylinder_inertia" params="m r l">
+        <inertial>
+            <mass value="${m}"/>
+            <inertia ixx="${m*(3*r*r+l*l)/12}" ixy="0" ixz="0" 
+                     iyy="${m*(3*r*r+l*l)/12}" iyz="0" 
+                     izz="${m*r*r/2}"/>
+        </inertial>
+    </xacro:macro>
+</robot>
