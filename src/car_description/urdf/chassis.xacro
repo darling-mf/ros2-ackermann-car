@@ -29,4 +29,10 @@
         <xacro:box_inertia m="${chassis_mass}" x="${chassis_length}" y="${chassis_width}" z="${chassis_height}"/>
     </link>
 
+    <!-- Gazebo 专属标签：让底盘在仿真里是蓝色的 -->
+    <gazebo reference="base_link">
+        <material>Gazebo/Blue</material>
+        <mu1>0.2</mu1>  <!-- 底盘的摩擦系数调小，防止卡在地面上 -->
+        <mu2>0.2</mu2>
+    </gazebo>
 </robot>

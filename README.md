@@ -14,5 +14,11 @@ rm -rf build install log  # 清理缓存
 colcon build
 source install/setup.bash
 ros2 launch car_description display.launch.py
+```
+## 🚀键盘测试工具
+```bash
+source /opt/ros/humble/setup.bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
 
 如果你在启动过程中遇到报错（如 RViz 不显示模型、xacro 崩溃等），请查阅 TROUBLESHOOTING.md。
