@@ -4,3 +4,6 @@ log/
 .vscode/
 __pycache__/
 *.pyc
+
+# 忽略外部依赖库 (FAST_LIO 本身是独立仓库)
+src/FAST_LIO/

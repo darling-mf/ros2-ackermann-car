@@ -1,0 +1,64 @@
+<gazebo reference="laser_link">
+    <material>Gazebo/Red</material>
+    <!--射线类型-->
+    <sensor type="ray" name="lidar3d_sensor">
+        <update_rate>10</update_rate>
+        <visualize>true</visualize>
+        <ray>
+            <scan>
+                <horizontal>
+                    <!--水平扫描 720点 360度-->
+                    <samples>720</samples>
+                    <min_angle>-3.14159</min_angle>
+                    <max_angle>3.14159</max_angle>
+                </horizontal>
+                <vertical>
+                    <!--垂直扫描 16点 正负15度-->
+                    <samples>16</samples>
+                    <min_angle>-0.2618</min_angle>
+                    <max_angle>0.2618</max_angle>
+                </vertical>
+            </scan>
+            <range>
+                <!--距离范围-->
+                <min>0.5</min>
+                <max>50.0</max>
+            </range>
+        </ray>
+        <plugin name="laser_controller" filename="libgazebo_ros_ray_sensor.so">
+            <ros>
+                <!--重映射 节点名为points-->
+                <remapping>~/out:=points</remapping>
+            </ros>
+            <!--输出类型 3D点云-->
+            <output_type>sensor_msgs/PointCloud2</output_type>
+            <frame_name>laser_link</frame_name>
+        </plugin>
+    </sensor>
+</gazebo>
+
+<link name="imu_link">
+    <inertial>
+        <mass value="0.01"/>
+        <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+</link>
+
+<joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0 0 0.02" rpy="0 0 0"/>
+</joint>
+
+<gazebo reference="imu_link">
+    <sensor name="imu_sensor" type="imu">
+        <update_rate>200</update_rate>
+        <plugin name="imu_plugin" filename="libgazebo_ros_imu_sensor.so">
+            <ros>
+                <!--重映射到imu话题-->
+                <remapping>~/out:=imu</remapping>
+            </ros>
+            <frame_name>imu_link</frame_name>
+        </plugin>
+    </sensor>
+</gazebo>
