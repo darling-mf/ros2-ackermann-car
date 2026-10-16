@@ -1,6 +1,6 @@
 import os
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, ExecuteProcess, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
@@ -9,18 +9,28 @@ import xacro
 def generate_launch_description():
     pkg_path = get_package_share_directory('car_description')
     xacro_file = os.path.join(pkg_path, 'urdf', 'car.urdf.xacro')
-
-    # 你昨天保存的 RViz 配置文件路径
+    default_world_path = os.path.join(pkg_path, 'world', 'custom_room.world')
     rviz_config_path = os.path.join(pkg_path, 'rviz', 'display.rviz')
+
+    #模型
+    model_path = os.path.join(pkg_path, 'world', 'room')
 
     # 解析 xacro
     doc = xacro.process_file(xacro_file)
     robot_desc = doc.toxml()
+    
+     # 清理并设置 Gazebo 模型路径
+    set_gazebo_model_path = SetEnvironmentVariable(
+        name='GAZEBO_MODEL_PATH',
+        value=model_path + ':' + os.environ.get('GAZEBO_MODEL_PATH', '')
+    )
 
-    # 1. 启动 Gazebo 空世界
+    # 1. 启动 Gazebo
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
             get_package_share_directory('gazebo_ros'), 'launch', 'gazebo.launch.py')]),
+        # 传递参数
+        launch_arguments=[('world', default_world_path),('verbose','true')]
     )
 
     # 2. 发布机器人状态
@@ -47,6 +57,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        set_gazebo_model_path,
         gazebo,
         robot_state_publisher,
         spawn_entity,

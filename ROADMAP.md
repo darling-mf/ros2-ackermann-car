@@ -22,8 +22,8 @@
 | | TF 坐标树 | 建立 `base_link`, `base_footprint`, `odom` 等坐标系 | `rviz2` 中显示模型且TF树无报错 | [x] |
 | **第二阶段：可视化与仿真** | RViz 基础显示 | 编写 `display.launch.py`，加载模型 | 模型能在 RViz 中正常显示，且能通过 GUI 控制关节 | [x] |
 | | Gazebo 仿真环境 | 编写 `gazebo.launch.py`，加载 `car.urdf.xacro` | 模型成功生成在 Gazebo 中，未坠落 | [x] |
-| | 传感器仿真插件 | 在 Xacro 中配置 IMU、3D 激光雷达、摄像头的 Gazebo 插件 | Gazebo 中能输出 `/scan`, `/imu`, `/points` 话题 | [ ] |
-| **第三阶段：运动控制** | 差速驱动插件 | 配置 `libgazebo_ros_diff_drive.so` 控制器 | Gazebo 中能接收 `/cmd_vel` 并驱动后轮转动 | [ ] |
+| | 传感器仿真插件 | 在 Xacro 中配置 IMU、3D 激光雷达的 Gazebo 插件 | Gazebo 中能输出 `/scan`, `/imu`, `/points` 话题 | [x] |
+| **第三阶段：运动控制** | 差速驱动插件 | 配置 `libgazebo_ros_diff_drive.so` 控制器 | Gazebo 中能接收 `/cmd_vel` 并驱动后轮转动 | [x] |
 | | 运动控制验证 | 发布 `/cmd_vel` 话题 | 小车在 Gazebo 中能按预期前后左右移动 | [ ] |
 | **第四阶段：建图与导航** | 3D SLAM 探索 | 编译并集成 `FAST-LIO2`，进行 3D 建图学习 | 成功编译 `fast_lio` 包，能够在 Gazebo 中输出 3D 点云地图 | [x] |
 | | 2D SLAM 建图 | 引入 `slam_toolbox` 或 `cartographer` | 控制小车运动，能在 RViz 中生成 2D 栅格地图 | [ ] |
@@ -36,4 +36,4 @@
 ## 📝 更新记录
 - 2026-10-15: 完成 URDF 拆分，建立基础 TF 树；成功在 RViz 正常显示。
 - 2026-10-16: 在 URDF 中配置 Gazebo 属性，引入阿克曼差速驱动插件，成功在 Gazebo 中正常移动。
-- 2026-10-16: 
+- 2026-10-16: 成功编译 FAST-LIO2 并进行 3D 雷达仿真建图测试；打通了从 URDF 建模到 SLAM 算法集成的全流程

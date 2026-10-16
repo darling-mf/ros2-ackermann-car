@@ -1,8 +1,5 @@
-<?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-
-
-
+    <xacro:macro name="chassis_xacro">
     <!-- 根节点（地面投影） -->
     <link name="base_footprint"/>
 
@@ -35,4 +32,5 @@
         <mu1>0.2</mu1>  <!-- 底盘的摩擦系数调小，防止卡在地面上 -->
         <mu2>0.2</mu2>
     </gazebo>
+    </xacro:macro>
 </robot>

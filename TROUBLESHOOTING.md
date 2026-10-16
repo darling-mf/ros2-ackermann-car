@@ -55,3 +55,33 @@
 
 ### 4. CMake 策略警告（无需理会）
 - 类似 `Policy CMP0074 is not set` 和 `PCL_ROOT is set to /usr` 的警告，属于 CMake 3.25+ 对老项目的例行提示，无需理会，修改反而易引发 PCL 找不到的连锁报错。
+
+## 四、 FAST-LIO2 运行与数据流问题
+
+### 1. `No point, skip this scan!` 报错
+- **现象**：FAST-LIO2 启动后终端反复打印此警告，RViz 黑屏无点云。
+- **原因与解决方案**：
+    1. **点云格式不匹配**：将 `velodyne.yaml` 中 `lidar_type` 改为 `0`（通用处理器），因为 Gazebo 的 `libgazebo_ros_ray_sensor.so` 输出的是基础 `PointCloud2` 格式（无 `ring` 和 `time` 字段）。
+    2. **过滤参数过严**：将 `point_filter_num` 改为 `1`，`blind` 改为 `0.1`，确保点云不被过滤光。
+    3. **Gazebo 仿真时间未同步**：启动 FAST-LIO2 时必须加上 `use_sim_time:=true` 参数。
+    4. **Gazebo 处于暂停状态**：启动 Gazebo 后点击窗口按空格键，确保左下角时间在跳动。
+
+### 2. IMU 无数据 / `Get noise index not valid`
+- **现象**：`/imu` 话题有 Publisher 但无数据，Gazebo 终端报 `Get noise index not valid`。
+- **原因**：Gazebo Classic 中，`libgazebo_ros_imu_sensor.so` 插件如果只写了 `<imu>` 标签但没有配置 `<noise>` 噪声模型，会导致传感器初始化不合法，拒绝输出数据。
+- **解决方案**：在 `imu.xacro` 的 `<imu>` 标签内补全 `angular_velocity` 和 `linear_acceleration` 的标准高斯噪声参数，并设置 `<always_on>true</always_on>`。
+
+### 4. Xacro 文件结构规范（包含 vs 宏）
+- **现象**：使用 `<xacro:include>` 包含子文件时报 `ExpatError: junk after document element`。
+- **原因**：`xacro:include` 相当于将子文件内容原封不动地复制粘贴到主文件。如果子文件包含 `<?xml version="1.0"?>` 或 `<robot>` 标签，就会导致主文件出现嵌套的根节点，XML 解析崩溃。
+- **解决方案**：
+    - 使用 `xacro:include` 时，子文件（如 `laser.xacro`、`imu.xacro`）绝对不能有 `<?xml>` 声明和 `<robot>` 标签。
+    - 使用 `xacro:macro` 定义时，宏内部可以包裹在 `<robot>` 标签中，因为 Xacro 引擎在调用宏时会自动剥离外层标签。
+|        文件类型        | `<?xml?>` 声明   | `<robot>` 根标签 | `xmlns:xacro` 声明 | include 其他文件 |
+| 主文件`car.urdf.xacro` |    ✅ 必须有     |     ✅ 必须有    |       ✅ 必须有    | ✅ 统一在此 include |
+| 子文件`common.xacro`   |    ❌ 不能有     |     ✅ 必须有    |       ✅ 必须有    | ❌ 不 include |
+| 子文件`chassis.xacro`  |    ❌ 不能有     |     ✅ 必须有    |       ✅ 必须有    | ❌ 不 include |
+| 子文件`wheels.xacro`   |    ❌ 不能有     |     ✅ 必须有    |       ✅ 必须有    | ❌ 不 include |
+| 子文件`laser.xacro`    |    ❌ 不能有     |     ✅ 必须有    |       ✅ 必须有    | ❌ 不 include |
+| 子文件`imu.xacro`      |    ❌ 不能有     |     ✅ 必须有    |       ✅ 必须有    | ❌ 不 include |
+

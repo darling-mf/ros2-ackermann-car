@@ -1,6 +1,4 @@
-<?xml version="1.0"?>
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-
+ <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
     <!-- ================= 机械尺寸参数（单位：米） ================= -->
     <!-- 底盘尺寸：230x187.6x67mm -->
     <xacro:property name="chassis_length" value="0.230"/>
