@@ -69,7 +69,7 @@
 ### 2. IMU 无数据 / `Get noise index not valid`
 - **现象**：`/imu` 话题有 Publisher 但无数据，Gazebo 终端报 `Get noise index not valid`。
 - **原因**：Gazebo Classic 中，`libgazebo_ros_imu_sensor.so` 插件如果只写了 `<imu>` 标签但没有配置 `<noise>` 噪声模型，会导致传感器初始化不合法，拒绝输出数据。
-- **解决方案**：在 `imu.xacro` 的 `<imu>` 标签内补全 `angular_velocity` 和 `linear_acceleration` 的标准高斯噪声参数，并设置 `<always_on>true</always_on>`。
+- **解决方案**：在 `imu.xacro` 的 `<imu>` 标签内补全 `angu lar_velocity` 和 `linear_acceleration` 的标准高斯噪声参数，并设置 `<always_on>true</always_on>`。
 
 ### 4. Xacro 文件结构规范（包含 vs 宏）
 - **现象**：使用 `<xacro:include>` 包含子文件时报 `ExpatError: junk after document element`。
@@ -85,3 +85,17 @@
 | 子文件`laser.xacro`    |    ❌ 不能有     |     ✅ 必须有    |       ✅ 必须有    | ❌ 不 include |
 | 子文件`imu.xacro`      |    ❌ 不能有     |     ✅ 必须有    |       ✅ 必须有    | ❌ 不 include |
 
+
+### 5. FAST-LIO2 PCD 地图保存与导出问题
+ -**现象**：`velodyne.yaml` 中 `pcd_save_en: true` 已开启，终端未报错，但 `PCD/` 目录下无 `.pcd文件` 生成。
+ - **解决方案**：
+    1.查询Bag包里的真实话题名（点云话题名称：/points）`ros2 bag info <你的bag文件夹路径>`
+    2.安装 ROS 2 官方的数据导出工具(ros unbag)  
+        # 假设你的 ROS 版本是 Humble    `sudo apt install ros-humble-unbag`
+    3.执行转换并严格指定输出目录`ros2 unbag <你的bag文件夹路径> --export <点云话题名>:pointcloud/pcd -o  /home/<USER>/car_ws/src/FAST_LIO/PCD/`
+    4.验证成功`ls -lh /home/mjf/car_ws/src/FAST_LIO/PCD/`
+    5.安装 PCL 工具集   `sudo apt install pcl-tools`
+    6.进入 PCD 文件夹，将所有 points_*.pcd 合并为一个 .pcd  `pcl_concatenate_points_pcd *.pcd`
+ - **部分原因与方案**:
+    1..**仿真时钟缺失**：回放包时漏加 `--clock`，导致 FAST-LIO 节点内部定时器停摆。命令：`ros2 bag play <你的bag路径> -r 0.5 --clock`。
+    2. **参数未显式传递**：Launch 启动时直接追加节点参数：`pcd_save.pcd_save_en:=true pcd_save.interval:=-1`。

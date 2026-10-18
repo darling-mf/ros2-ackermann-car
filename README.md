@@ -13,6 +13,9 @@
                  ros-humble-xacro \
                  ros-humble-gazebo-ros-pkgs \
                  ros-humble-teleop-twist-keyboard
+    ros2 unbag:
+    sudo apt install ros-${ROS_DISTRO}-unbag
+    # 例如 ROS 2 Humble 系统：sudo apt install ros-humble-unbag
 ```
 
 ## 🚀 编译与运行
@@ -33,11 +36,11 @@ source /opt/ros/humble/setup.bash
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
 FAST-LIO2 3D 建图仿真
-ros2 launch fast_lio mapping.launch.py \
-    config_file:=/home/mjf/car_ws/src/FAST_LIO/config/velodyne.yaml \
-    use_sim_time:=true
+ros2 launch fast_lio mapping.launch.py config_file:=/home/<USER>/car_ws/src/FAST_LIO/config/velodyne.yaml use_sim_time:=true
+
 ```
 ## 📂 项目结构
+```text
 car_ws/
 ├── src/
 │   ├── car_description/      # 阿克曼小车描述包
@@ -55,6 +58,7 @@ car_ws/
 ├── README.md                 # 本文件
 ├── ROADMAP.md                # 开发进度规划
 └── TROUBLESHOOTING.md        # 踩坑与报错记录
+```
 
 ## 🛠️ 开发与编译工作流 (Development Workflow)
 
@@ -80,18 +84,21 @@ car_ws/
 | **消息/服务定义**       | `.msg`, `.srv`, `.action`           | **必须重新编译**                   | ❌ 不生效 |
 
 
-> **⚠️ 避坑提示（断头路与移植）：**
-> 1. **断头路报错**：如果在 `src` 里删除或重命名了文件，`install` 里的软链接会变成“断链”指向虚无。必须清理 `install` 重新 build。
-> 2. **移植灾难**：软链接里存的是你电脑的绝对路径。如果要打包发给别人，必须进行一次普通的 `colcon build`（不加 `--symlink-install`），生成纯拷贝版。
+## 📃 点云地图
+```bash
+录制点云、IMU、TF 树以及仿真时钟
+ros2 bag record -o bags/fastlio_test_01 /points /imu /tf /tf_static /clock
 
-> **🚑 玄学报错急救包：**
-> 但凡遇到“我明明改对了，为什么它没生效”或者“莫名其妙的路径报错”，直接执行终极三连：
-> ```bash
-> cd ~/car_ws
-> rm -rf build/ install/ log/
-> colcon build --symlink-install
-> source install/setup.bash
-> ```
+转换命令
+ros2 unbag <你的bag文件夹路径> --export <点云话题名>:pointcloud/pcd -o  /home/<USER>/car_ws/src/FAST_LIO/PCD/
+
+合并文件
+pcl_concatenate_points_pcd *.pcd
+
+快速查看（pcl_viewer）点云地图
+pcl_viewer <合并后.pcd文件>     例: pcl_vrewer output.pcd
+
+```
 
 
 ## 🐛 报错排查
