@@ -99,3 +99,5 @@
  - **部分原因与方案**:
     1..**仿真时钟缺失**：回放包时漏加 `--clock`，导致 FAST-LIO 节点内部定时器停摆。命令：`ros2 bag play <你的bag路径> -r 0.5 --clock`。
     2. **参数未显式传递**：Launch 启动时直接追加节点参数：`pcd_save.pcd_save_en:=true pcd_save.interval:=-1`。
+
+ 

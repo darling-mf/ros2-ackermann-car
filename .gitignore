@@ -7,6 +7,8 @@ __pycache__/
 
 # 忽略外部依赖库 (FAST_LIO 本身是独立仓库)
 src/FAST_LIO/
+src/FAST-LIO-SAM-QN
+src/livox_ros_driver2
 
 # 忽略所有 PCD 点云数据文件，防止仓库爆炸
 *.pcd

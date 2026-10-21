@@ -1,11 +1,21 @@
-# ROS 2 阿克曼小车建模与 3D SLAM 探索 (Ackermann Car & FAST-LIO2)
 
-基于 **Ubuntu 22.04** + **ROS 2 Humble** 的阿克曼小车项目。目前已完成 3D 雷达建模、Gazebo 物理仿真，并成功编译集成了 FAST-LIO2 激光雷达惯性里程计，用于 3D 建图与导航算法的学习。
+---
 
-## 📦 依赖
-- Ubuntu 22.04
-- ROS 2 Humble
+### 📄 文件 2：直接覆盖你的 `README.md`
+（包含了最新的 FAST-LIO-SAM 架构和正确的运行指令）
+
+```markdown
+# ROS 2 阿克曼小车建模与 3D SLAM 探索 (Ackermann Car & FAST-LIO-SAM)
+
+基于 **Ubuntu 22.04** + **ROS 2 Humble** 的阿克曼小车项目。目前已打通从 URDF 建模、Gazebo 物理仿真到 **FAST-LIO-SAM-QN (3D 激光惯性 SLAM)** 的完整闭环，具备全局位姿图优化与回环检测能力。
+
+## 📦 依赖环境
+- Ubuntu 22.04 & ROS 2 Humble
 - Gazebo Classic
+- **核心算法依赖**：GTSAM 4.1.1, TEASER++, Livox-SDK2, livox_ros_driver2
+- **系统依赖**：`ros-humble-pcl-ros`, `ros-humble-rosbag2*` 等
+
+source install/setup.bash
 - 安装依赖：
 ```bash
     sudo apt install ros-humble-joint-state-publisher-gui ros-humble-xacro
@@ -35,8 +45,10 @@ ros2 launch car_description gazebo.launch.py
 source /opt/ros/humble/setup.bash
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
-FAST-LIO2 3D 建图仿真
-ros2 launch fast_lio mapping.launch.py config_file:=/home/<USER>/car_ws/src/FAST_LIO/config/velodyne.yaml use_sim_time:=true
+1.SLAM编译底层依赖
+colcon build --packages-select livox_ros_driver2 --cmake-args -DROS_EDITION=ROS2 -DHUMBLE_ROS=humble
+2.编译前端与后端 SLAM 包
+colcon build --packages-select fast_lio fast_lio_sam_qn --parallel-workers 2 --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 ```
 ## 📂 项目结构
@@ -53,12 +65,17 @@ car_ws/
 │   │   ├── launch/          # 启动文件
 │   │   ├── rviz/            # RViz 配置文件
 │   │   └── world/           # Gazebo 地图文件
-│   └── FAST_LIO/            # 3D SLAM 算法包 (已去除非必要的 Livox 依赖)
+│   ├── FAST_LIO/                 # FAST-LIO2 前端 (提供实时里程计)
+|   ├── FAST-LIO-SAM-QN/          # LIO-SAM 后端 (包含回环检测与位姿图优化)
+|   ├── livox_ros_driver2/        # 雷达驱动 (编译依赖)
+|   ├── nano_gicp/                # 点云配准库
+|   └── Quatro/                   # 回环检测配准库
 ├── .gitignore                # 忽略 build/install/log
 ├── README.md                 # 本文件
 ├── ROADMAP.md                # 开发进度规划
 └── TROUBLESHOOTING.md        # 踩坑与报错记录
 ```
+
 
 ## 🛠️ 开发与编译工作流 (Development Workflow)
 
@@ -92,11 +109,13 @@ ros2 bag record -o bags/fastlio_test_01 /points /imu /tf /tf_static /clock
 转换命令
 ros2 unbag <你的bag文件夹路径> --export <点云话题名>:pointcloud/pcd -o  /home/<USER>/car_ws/src/FAST_LIO/PCD/
 
+进入 PCD 文件所在目录
+cd /home/<USER>/car_ws/src/FAST_LIO/PCD
 合并文件
 pcl_concatenate_points_pcd *.pcd
 
 快速查看（pcl_viewer）点云地图
-pcl_viewer <合并后.pcd文件>     例: pcl_vrewer output.pcd
+pcl_viewer <合并后.pcd文件>     例: pcl_viewer output.pcd
 
 ```
 
