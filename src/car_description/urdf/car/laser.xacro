@@ -1,16 +1,16 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
     <xacro:macro name="laser_xacro">   
-    <!-- ================= 1. 3D 雷达物理实体 ================= -->
+    <!-- ================= 1. 2D 雷达物理实体 ================= -->
     <link name="laser_link">
         <visual>
             <geometry>
-                <cylinder radius="0.03" length="0.04"/> <!-- 红色小圆柱体 -->
+                <cylinder radius="0.03" length="0.02"/> <!-- 红色小圆柱体 -->
             </geometry>
             <material name="red"/>
         </visual>
         <collision>
             <geometry>
-                <cylinder radius="0.03" length="0.04"/>
+                <cylinder radius="0.03" length="0.02"/>
             </geometry>
         </collision>
         <inertial>
@@ -29,21 +29,23 @@
     <!-- Gazebo 专属雷达传感器插件 -->
     <gazebo reference="laser_link">
         <material>Gazebo/Red</material>
-        <sensor type="ray" name="lidar3d_sensor">
+        <sensor type="ray" name="lidar2d_sensor">
             <update_rate>10</update_rate>
             <visualize>false</visualize>
             <ray>
                 <scan>
                     <horizontal>
-                        <samples>720</samples>
+                        <samples>360</samples>
                         <min_angle>-3.14159</min_angle>
                         <max_angle>3.14159</max_angle>
                     </horizontal>
+                    <!--
                     <vertical>
                         <samples>16</samples>
                         <min_angle>-0.2618</min_angle>
                         <max_angle>0.2618</max_angle>
                     </vertical>
+                    -->
                 </scan>
                 <range>
                     <min>0.1</min>
@@ -52,9 +54,9 @@
             </ray>
             <plugin name="laser_controller" filename="libgazebo_ros_ray_sensor.so">
                 <ros>
-                    <remapping>~/out:=points</remapping>
+                    <remapping>~/out:=scan</remapping>
                 </ros>
-                <output_type>sensor_msgs/PointCloud2</output_type>
+                <output_type>sensor_msgs/LaserScan</output_type>
                 <frame_name>laser_link</frame_name>
             </plugin>
         </sensor>

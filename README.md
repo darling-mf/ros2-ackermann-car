@@ -49,6 +49,8 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 colcon build --packages-select livox_ros_driver2 --cmake-args -DROS_EDITION=ROS2 -DHUMBLE_ROS=humble
 2.编译前端与后端 SLAM 包
 colcon build --packages-select fast_lio fast_lio_sam_qn --parallel-workers 2 --cmake-args -DCMAKE_BUILD_TYPE=Release
+3.运行SLAM
+ros2 launch fast_lio_sam_qn run.launch.py lidar:=velodyne
 
 ```
 ## 📂 项目结构

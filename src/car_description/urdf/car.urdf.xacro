@@ -10,13 +10,16 @@
     <xacro:include filename="car/laser.xacro"/>
     <!-- 引入 IMU 模块 -->
     <xacro:include filename="car/imu.xacro"/>
+    <!-- 引入 sonar 模块 -->
+    <xacro:include filename="car/sonar.xacro"/>
     
     <!-- 调用宏实例化模型 -->
     <xacro:chassis_xacro/>
     <xacro:wheels_xacro/>
     <xacro:laser_xacro/> 
     <xacro:imu_xacro/> 
-
+    <xacro:sonar_xacro/>
+     
     <!-- ================= Gazebo 差速驱动插件 ================= -->
     <gazebo>
         <plugin name='diff_drive' filename='libgazebo_ros_diff_drive.so'>

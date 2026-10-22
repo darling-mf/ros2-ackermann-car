@@ -11,7 +11,7 @@ def generate_launch_description():
     pkg_path = get_package_share_directory('car_description')
     xacro_file = os.path.join(pkg_path, 'urdf', 'car', 'mapping_car.xacro')
     world_path = os.path.join(pkg_path, 'world', 'custom_room.world')
-    rviz_config = os.path.join(pkg_path, 'rviz', 'fastlio.rviz')
+    rviz_config_path = os.path.join(pkg_path, 'rviz', 'display.rviz')
 
     doc = xacro.process_file(xacro_file)
     robot_desc = doc.toxml()
@@ -45,7 +45,7 @@ def generate_launch_description():
         Node(
             package='rviz2',
             executable='rviz2',
-            arguments=['-d', rviz_config],
+            arguments=['-d', rviz_config_path],
             parameters=[{'use_sim_time': True}]
         )
     ])
