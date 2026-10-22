@@ -23,5 +23,5 @@ endif()
 
 ament_package()
 
-install(DIRECTORY map launch
+install(DIRECTORY map launch config behavior_trees
 DESTINATION share/${PROJECT_NAME})

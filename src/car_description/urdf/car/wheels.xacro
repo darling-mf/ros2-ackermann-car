@@ -23,7 +23,7 @@
             <child link="${prefix}_wheel_link"/>
             <!-- 后轮位置：轴距的一半（负X轴），轮距的一半（Y轴镜像） -->
             <origin xyz="${-wheelbase/2} ${y_reflect * track/2} 0" rpy="1.5707 0 0"/>
-            <axis xyz="0 0 -1"/>
+            <axis xyz="0 0 ${-y_reflect}"/>
         </joint>
     </xacro:macro>
     <!--左右后轮-->
@@ -48,12 +48,11 @@
             <!-- 前轮位置：轴距的一半（正X轴） -->
             <origin xyz="${wheelbase/2} ${y_reflect * track/2} 0" rpy="0 0 0"/>
             <axis xyz="0 0 1"/>
-            <!-- 加入阻尼，防止转向轮自发抖动 -->
-            <!-- 无法转向，暂时注释-->
-            <!--dynamics damping="0.5" friction="0.5"/--> 
+            <!-- 加入阻尼和摩擦，防止转向轮自发抖动 -->
+            <dynamics damping="2.0" friction="0.5"/> 
 
             <!-- 限制最大转向角度：根据最小转弯半径0.55m和轴距0.112m计算，最大转角约0.2rad (约11.5度) -->
-            <limit effort="10" lower="-0.3" upper="0.3" velocity="1.0"/> 
+            <limit effort="10" lower="-0.5" upper="0.5" velocity="1.0"/> 
         </joint>
 
         <!-- 前轮轮子 -->
@@ -73,7 +72,7 @@
             <parent link="${prefix}_steer_link"/>
             <child link="${prefix}_wheel_link"/>
             <origin xyz="0 0 0" rpy="1.5707 0 0"/>
-            <axis xyz="0 0 -1"/>
+            <axis xyz="0 0 ${-y_reflect}"/>
         </joint>
     </xacro:macro>
 
