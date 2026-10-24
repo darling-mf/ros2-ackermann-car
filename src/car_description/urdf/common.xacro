@@ -24,6 +24,7 @@
     <material name="blue"><color rgba="0 0 1 1"/></material>
     <material name="black"><color rgba="0 0 0 1"/></material>
     <material name="red"><color rgba="1 0 0 1"/></material>
+    <material name="green"><color rgba="0 1 0 1"/></material>
 
     <!-- ================= 惯性矩阵宏 ================= -->
     <xacro:macro name="box_inertia" params="m x y z">

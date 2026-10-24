@@ -1,0 +1,54 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 50  # Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    ackermann_steering_controller:
+      type: ackermann_steering_controller/AckermannSteeringController
+
+ackermann_steering_controller:
+  ros__parameters:
+    # ================= 1. 机械尺寸（与 common.xacro 保持一致） =================
+    wheelbase: 0.112          # 轴距 m
+    front_wheel_track: 0.164  # 前轮距 m
+    rear_wheel_track: 0.164   # 后轮距 m
+    front_wheels_radius: 0.0245
+    rear_wheels_radius: 0.0245
+
+    # ================= 2. 关节名称与顺序（非常关键） =================
+    # 控制器内部固定按“右轮、左轮”的顺序生成差速/转角指令，
+    # 这里必须也按“右、左”填写，否则内/外侧车轮会反着转，车会画龙甚至不转弯。
+    rear_wheels_names:  ["right_rear_wheel_joint", "left_rear_wheel_joint"]
+    front_wheels_names: ["right_front_steer_joint", "left_front_steer_joint"]
+    front_steering: true
+
+    # ================= 3. 控制与里程计 =================
+    reference_timeout: 0.5      # 0.5 s 收不到 cmd_vel 就停车
+    open_loop: false            # 用 Gazebo 反馈的后轮速度和前轮转角算里程计
+    position_feedback: false    # 后轮反馈的是 velocity 接口
+    velocity_rolling_window_size: 10
+    reduce_wheel_speed_until_steering_reached: false
+
+    base_frame_id: "base_footprint"
+    odom_frame_id: "odom"
+    enable_odom_tf: true
+
+    # false: 订阅 geometry_msgs/Twist（teleop_twist_keyboard / Nav2 默认）
+    # true : 订阅 geometry_msgs/TwistStamped
+    use_stamped_vel: false
+
+    # 单个前轮的机械转角上限 [rad]，与 URDF 中 *_steer_joint 的 limit 一致。
+    # 控制器会把它换算成“虚拟中心转角”的上限（本车约 0.372 rad），
+    # 从而保证内侧轮不会超过 0.5 rad。0 表示不限制。
+    max_steering_angle: 0.235
+    min_steering_angle: -0.235
+
+    # 里程计协方差（官方 2.54.1 在这里有 bug，源码已修正）
+    pose_covariance_diagonal: [0.0001, 0.0001, 0.000001, 0.000001, 0.000001, 0.001]
+    twist_covariance_diagonal: [0.0001, 0.0001, 0.000001, 0.000001, 0.000001, 0.001]
+
+    # 注意：2.54.1 的 ackermann_steering_controller 没有 max_velocity /
+    # max_wheel_velocity 参数，写了也不会生效。速度上限由 URDF 中轮胎关节的
+    # velocity limit（10 rad/s ≈ 0.245 m/s）和 Nav2 的 velocity_smoother 约束。

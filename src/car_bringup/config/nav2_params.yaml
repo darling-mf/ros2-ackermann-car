@@ -26,7 +26,7 @@ amcl:
     recovery_alpha_fast: 0.0
     recovery_alpha_slow: 0.0
     resample_interval: 1
-    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    #robot_model_type: "nav2_amcl::DifferentialMotionModel"
     save_pose_rate: 0.5
     sigma_hit: 0.2
     tf_broadcast: true
@@ -48,7 +48,7 @@ bt_navigator:
     bt_loop_duration: 10
     default_server_timeout: 20
     wait_for_service_timeout: 1000
-    # 'default_nav_through_poses_bt_xml' and 'default_nav_to_pose_bt_xml' are use defaults:
+    'default_nav_through_poses_bt_xml': home/mjf/car_ws/src/car_navigation/behavior_trees/my_custom_bt.xml"
     # nav2_bt_navigator/navigate_to_pose_w_replanning_and_recovery.xml
     # nav2_bt_navigator/navigate_through_poses_w_replanning_and_recovery.xml
     # They can be set here or via a RewrittenYaml remap from a parent launch file to Nav2.
@@ -113,8 +113,8 @@ controller_server:
   ros__parameters:
     use_sim_time: True
     controller_frequency: 20.0
-    min_x_velocity_threshold: 0.001
-    min_y_velocity_threshold: 0.5
+    min_x_velocity_threshold: 0.001                #线速度最小速度阈值
+    min_y_velocity_threshold: 0.001                #横向速度最小速度阈值（阿克曼无法横移）
     min_theta_velocity_threshold: 0.001
     failure_tolerance: 0.3
     progress_checker_plugin: "progress_checker"
@@ -137,44 +137,76 @@ controller_server:
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.25
       yaw_goal_tolerance: 0.25
-    # RPP
+
+      # ================= MPPI 控制器（阿克曼专属） =================
     FollowPath:
-      plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      # 3. 将 RPP 作为内部的主控制器嵌入
-      #primary_controller: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+      plugin: "nav2_mppi_controller::MPPIController"
+      time_steps: 56                  # 预测步数
+      model_dt: 0.05                  # 每步时间间隔，乘起来约等于预测未来 2.8 秒
+      batch_size: 2000                # 采样轨迹数量（越大越丝滑，但极吃 CPU，虚拟机里先设 2000）
 
-      # --- Rotation Shim 核心参数 ---
-      # 触发原地旋转的航向角阈值（弧度）。默认 0.785 (约45度)
-      #angular_dist_threshold: 0.785 
-      # 原地旋转时的角速度 (rad/s)
-      #rotate_to_heading_angular_vel: 1.0 
-      # 用于估算路径朝向的前瞻采样距离 (米)
-      #forward_sampling_distance: 0.5 
+      # 🔥 核心参数 1：告诉 MPPI 你的运动学模型是阿克曼！
+      motion_model: "Ackermann"
+      
+      # 🔥 核心参数 2：阿克曼的物理约束（必须与规划器一致）
+      AckermannConstraints:
+        min_turning_r: 0.55           # 最小转弯半径，强制它只能画大圈
 
-      # --- 以下是 RPP 的参数，现在它们归属于 primary_controller ---
-      # 🔥 速度设置
-      desired_linear_vel: 0.3           # 目标线速度（慢点好调参）
-      lookahead_dist: 0.4               # 前视距离（盯着前方0.4米处的点开过去）
-      min_lookahead_dist: 0.3           # 最小前视距离
-      max_lookahead_dist: 0.6           # 最大前视距离
+      # 速度限制（与你的 velocity_smoother 保持一致）
+      vx_max: 1
+      vx_min: -1                   # 允许倒车速度
+      vy_max: 0.0                     # 阿克曼不能横移
+      wz_max: 1                     # 最大角速度
       
-      # 🔥 转弯减速机制（防止车速过快侧翻/漂移）
-      use_regulated_linear_velocity_scaling: true
-      regulated_linear_scaling_min_radius: 0.6 # 转弯半径小于此值开始减速
-      regulated_linear_scaling_min_speed: 0.1  # 转弯时最慢速度
-      
-      # 🔥 碰撞检测（开启后如果快撞墙了会自动刹车）
-      use_collision_detection: true
-      
-      # 🚫 强制关闭原地旋转！
-      use_rotate_to_heading: false      # 阿克曼绝对禁止原地转向终点
-      allow_reversing: true          # 🔥 允许RPP执行倒车指令
-      
-      # PID 与角速度限制（这部分一般默认，不要改太大）
-      max_angular_accel: 3.2
-      rotate_to_heading_angular_vel: 1.0 
-      rotate_to_heading_min_angle: 3.14
+      # 加速度/减速度限制
+      acc_lim_x: 2.5
+      decel_lim_x: -2.5
+      acc_lim_theta: 3.2
+      decel_lim_theta: -3.2
 
+      # 🔥 极其重要的 Critic 权重（决定它怎么走）
+      critics: ["ConstraintCritic", "CostCritic", "GoalCritic", "GoalAngleCritic", "PathAlignCritic", "PathFollowCritic", "PathAngleCritic", "PreferForwardCritic"]
+      # 限制类约束
+      ConstraintCritic:
+        enabled: true
+        cost_weight: 4.0
+        cost_power: 1
+      # 避障类约束
+      CostCritic:
+        enabled: true
+        cost_weight: 3.0
+        critical_cost: 300.0
+        consider_footprint: true
+        collision_cost: 1000000.0
+      # 目标类约束(轨迹、朝向)
+      GoalCritic:
+        enabled: true
+        cost_weight: 5.0
+
+      GoalAngleCritic:
+        enabled: true
+        cost_weight: 3.0
+      # 路径跟踪类约束
+      PathAlignCritic:
+        enabled: true
+        cost_weight: 14.0             # 鼓励贴着路径走
+        max_path_occupancy_ratio: 0.05
+        
+      PathFollowCritic:
+        enabled: true
+        cost_weight: 5.0
+        
+      PathAngleCritic:
+        enabled: true
+        cost_weight: 2.0
+        offset_from_furthest: 4
+        threshold_to_consider: 0.5
+      # 行为偏好类约束
+      PreferForwardCritic:
+        enabled: true
+        cost_weight: 0.5              # 权重高则不倒车
+        threshold_to_consider: 0.5
+        
 local_costmap:
   local_costmap:
     ros__parameters:
@@ -184,8 +216,8 @@ local_costmap:
       robot_base_frame: base_link
       use_sim_time: True
       rolling_window: true
-      width: 3
-      height: 3
+      width: 5
+      height: 5
       resolution: 0.05
       robot_radius: 0.22
       plugins: ["voxel_layer", "inflation_layer"]
@@ -345,8 +377,8 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
-    max_velocity: [0.26, 0.0, 0.5]
-    min_velocity: [-0.26, 0.0, -0.5]
+    max_velocity: [1, 0.0, 1]
+    min_velocity: [-1, 0.0, -1]
     max_accel: [2.5, 0.0, 3.2]
     max_decel: [-2.5, 0.0, -3.2]
     odom_topic: "odom"

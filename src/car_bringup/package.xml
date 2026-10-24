@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>car_bringup</name>
+  <version>0.0.0</version>
+  <description>TODO: Package description</description>
+  <maintainer email="darling@ros.com">mjf</maintainer>
+  <license>TODO: License declaration</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>launch</depend>
+  <depend>launch_ros</depend>
+  <depend>gazebo_ros</depend>
+  <depend>robot_state_publisher</depend>
+  <depend>xacro</depend>
+  <depend>controller_manager</depend>
+
+  <!-- 控制器与仿真插件：ackermann 控制器不是 apt 默认安装的，
+       声明为 depend 后 colcon build 的 packages-up-to 参数会自动把它编译进来 -->
+  <depend>ackermann_steering_controller</depend>
+  <exec_depend>gazebo_ros2_control</exec_depend>
+
+  <!-- 测试脚本用到的消息接口 -->
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+
+  <exec_depend>car_description</exec_depend>
+  <exec_depend>car_navigation</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
+  
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

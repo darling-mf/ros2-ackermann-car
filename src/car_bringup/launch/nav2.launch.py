@@ -6,8 +6,8 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
-    pkg_path = get_package_share_directory('car_navigation')
-    map_yaml_file = os.path.join(pkg_path, 'map', 'my_room_map.yaml')
+    pkg_path = get_package_share_directory('car_bringup')
+    map_yaml_file = os.path.join(pkg_path, 'maps', 'my_room_map.yaml')
 
     # 1. 启动 Nav2 导航栈
     nav2_bringup = IncludeLaunchDescription(

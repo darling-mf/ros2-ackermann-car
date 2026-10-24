@@ -1,0 +1,62 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <ros2_control name="GazeboSimSystem" type="system">
+        <hardware>
+            <!-- Gazebo 仿真硬件接口 -->
+            <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+        </hardware>
+        
+        <!-- 前轮转向：位置控制 -->
+        <joint name="left_front_steer_joint">
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+        <joint name="right_front_steer_joint">
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+
+        <!-- 后轮驱动：速度控制 -->
+        <joint name="left_rear_wheel_joint">
+            <command_interface name="velocity"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+        <joint name="right_rear_wheel_joint">
+            <command_interface name="velocity"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+
+        <!-- 前轮滚动：只读取状态 -->
+        <joint name="left_front_wheel_joint">
+            <!--<command_interface name="position"/>-->
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+        <joint name="right_front_wheel_joint">
+            <!--<command_interface name="position"/>-->
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+    </ros2_control>
+
+    <!-- 加载 Gazebo 的 ros2_control 插件 -->
+    <gazebo>
+        <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
+            <!-- 注意路径：这里指向你的 controllers.yaml -->
+            <parameters>$(find car_bringup)/config/controllers.yaml</parameters>
+            <ros>
+                <!-- 重映射一些官方控制器的话题 -->
+                <remapping>/ackermann_steering_controller/tf_odometry:=/tf</remapping>
+                <remapping>/ackermann_steering_controller/odometry:=/odom</remapping>
+                <!-- controllers.yaml 中 use_stamped_vel 为 false 时控制器订阅
+                     ~/reference_unstamped；这里把它映射成标准的 /cmd_vel -->
+                <!-- 注意：URDF 注释里不要出现 ASCII 的“冒号+空格”，
+                     gazebo_ros2_control 会把 robot_description 当作参数覆盖规则解析 -->
+                <remapping>/ackermann_steering_controller/reference_unstamped:=/cmd_vel</remapping>
+            </ros>
+        </plugin>
+    </gazebo>
+</robot>
