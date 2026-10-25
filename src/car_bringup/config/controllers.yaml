@@ -5,29 +5,28 @@ controller_manager:
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
-    ackermann_steering_controller:
-      type: ackermann_steering_controller/AckermannSteeringController
+    # 阶段一：换成 R5 fork 控制器（在 ackermann 基础上叠加实车约束层）
+    r5_steering_controller:
+      type: r5_steering_controller/R5SteeringController
 
-ackermann_steering_controller:
+r5_steering_controller:
   ros__parameters:
-    # ================= 1. 机械尺寸（与 common.xacro 保持一致） =================
+    # ================= 1. 机械尺寸（与 common.xacro / 实车手册一致） =================
     wheelbase: 0.112          # 轴距 m
     front_wheel_track: 0.164  # 前轮距 m
     rear_wheel_track: 0.164   # 后轮距 m
-    front_wheels_radius: 0.0245
-    rear_wheels_radius: 0.0245
+    front_wheels_radius: 0.0325   # 实车 65mm 轮胎（TODO 实测确认，见 common.xacro 注释）
+    rear_wheels_radius: 0.0325
 
-    # ================= 2. 关节名称与顺序（非常关键） =================
-    # 控制器内部固定按“右轮、左轮”的顺序生成差速/转角指令，
-    # 这里必须也按“右、左”填写，否则内/外侧车轮会反着转，车会画龙甚至不转弯。
+    # ================= 2. 关节名称与顺序（控制器内部约定“右、左”） =================
     rear_wheels_names:  ["right_rear_wheel_joint", "left_rear_wheel_joint"]
     front_wheels_names: ["right_front_steer_joint", "left_front_steer_joint"]
     front_steering: true
 
-    # ================= 3. 控制与里程计 =================
+    # ================= 3. 控制与里程计（父类 ackermann 的参数） =================
     reference_timeout: 0.5      # 0.5 s 收不到 cmd_vel 就停车
-    open_loop: false            # 用 Gazebo 反馈的后轮速度和前轮转角算里程计
-    position_feedback: false    # 后轮反馈的是 velocity 接口
+    open_loop: false            # 用后轮实测速度 + 前轮实测转角算里程计
+    position_feedback: false    # 后轮反馈是 velocity 接口
     velocity_rolling_window_size: 10
     reduce_wheel_speed_until_steering_reached: false
 
@@ -35,20 +34,22 @@ ackermann_steering_controller:
     odom_frame_id: "odom"
     enable_odom_tf: true
 
-    # false: 订阅 geometry_msgs/Twist（teleop_twist_keyboard / Nav2 默认）
-    # true : 订阅 geometry_msgs/TwistStamped
+    # false 订阅 geometry_msgs/Twist（teleop / Nav2 默认）
     use_stamped_vel: false
 
-    # 单个前轮的机械转角上限 [rad]，与 URDF 中 *_steer_joint 的 limit 一致。
-    # 控制器会把它换算成“虚拟中心转角”的上限（本车约 0.372 rad），
-    # 从而保证内侧轮不会超过 0.5 rad。0 表示不限制。
+    # 单前轮机械转角上限 [rad]：实车最小转弯半径 0.55m 对应内侧轮 0.235 rad。
+    # 注意：没有 min_steering_angle 这个参数（上下限共用 max 的绝对值），
+    # 写了也会被静默忽略——这正是“参数要先对照声明再写”的教训。
     max_steering_angle: 0.235
-    min_steering_angle: -0.235
 
-    # 里程计协方差（官方 2.54.1 在这里有 bug，源码已修正）
     pose_covariance_diagonal: [0.0001, 0.0001, 0.000001, 0.000001, 0.000001, 0.001]
     twist_covariance_diagonal: [0.0001, 0.0001, 0.000001, 0.000001, 0.000001, 0.001]
 
-    # 注意：2.54.1 的 ackermann_steering_controller 没有 max_velocity /
-    # max_wheel_velocity 参数，写了也不会生效。速度上限由 URDF 中轮胎关节的
-    # velocity limit（10 rad/s ≈ 0.245 m/s）和 Nav2 的 velocity_smoother 约束。
+    # ================= 4. R5 专属参数（fork 叠加的约束层） =================
+    r5.max_accel: 0.8            # 最大加速度 [m/s^2]（保护 AT8236 限流 1.3A）
+    r5.max_decel: 1.5            # 最大减速度 [m/s^2]（正值）
+    r5.a_lat_max: 2.0            # 最大侧向加速度 [m/s^2]，速度相关转向限幅用
+    r5.max_steer_mech: 0.235     # 单前轮机械限位 [rad]（与 URDF limit 一致）
+    r5.max_steer_rate: 9.5       # 转向速率上限 [rad/s]；舵机 0.11s/60° 约等于 9.5，
+                                 # 想直观看到限速效果可临时改成 1.0 再跑验收
+    r5.speed_dependent_limit: true

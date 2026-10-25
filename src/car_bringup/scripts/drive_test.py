@@ -163,7 +163,7 @@ def main():
     parser.add_argument('--duration', type=float, default=2.0, help='持续时间 s')
     parser.add_argument('--rate', type=float, default=20.0, help='cmd_vel 发布频率 Hz')
     parser.add_argument('--wheelbase', type=float, default=0.112, help='轴距 m，用于打印理论转角')
-    parser.add_argument('--max-steer', type=float, default=0.5, help='前轮限位 rad')
+    parser.add_argument('--max-steer', type=float, default=0.235, help='前轮限位 rad')
     args = parser.parse_args()
 
     rclpy.init()

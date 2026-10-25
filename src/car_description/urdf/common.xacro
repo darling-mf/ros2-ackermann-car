@@ -9,16 +9,18 @@
     <xacro:property name="wheelbase" value="0.112"/>
     <xacro:property name="track" value="0.164"/>
     
-    <!-- 车轮尺寸：直径49mm，宽度45mm -->
-    <xacro:property name="wheel_radius" value="0.0245"/>
+    <!-- 车轮尺寸：手册参数表为 65mm 橡胶轮胎（与“330rpm×1.2m/s”反推一致）；
+         图纸上的 49 标注疑为轮毂直径。TODO：拿实物量外径确认，
+         若实测不是 65 只需改这一个数（轮径直接乘进里程计和最大车速）。 -->
+    <xacro:property name="wheel_radius" value="0.0325"/>
     <xacro:property name="wheel_width" value="0.045"/>
 
     <!-- ================= 质量参数（总重0.9kg） ================= -->
     <xacro:property name="chassis_mass" value="0.8"/> <!-- 底盘重0.8kg -->
     <xacro:property name="wheel_mass" value="0.025"/> <!-- 每个轮子0.025kg，4个合计0.1kg -->
 
-    <!-- 底盘离地高度（让车轮刚好接触地面） -->
-    <xacro:property name="chassis_z_offset" value="0.0245"/> 
+    <!-- 底盘离地高度（让车轮刚好接触地面） = 轮半径 -->
+    <xacro:property name="chassis_z_offset" value="${wheel_radius}"/>
 
     <!-- ================= 材质定义 ================= -->
     <material name="blue"><color rgba="0 0 1 1"/></material>

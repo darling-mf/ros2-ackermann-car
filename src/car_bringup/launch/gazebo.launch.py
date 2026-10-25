@@ -80,12 +80,12 @@ def generate_launch_description():
         output="screen",
     )
 
-    # 5. 加载并激活阿克曼控制器
+    # 5. 加载并激活 R5 阿克曼控制器（fork 自 ackermann_steering_controller）
     load_ackermann_controller = Node(
         package="controller_manager",
         executable="spawner",
         arguments=[
-            "ackermann_steering_controller",
+            "r5_steering_controller",
             "--controller-manager-timeout", "60",
             "--param-file", os.path.join(get_package_share_directory('car_bringup'), 'config', 'controllers.yaml'),
             "--activate",

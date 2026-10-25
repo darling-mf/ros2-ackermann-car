@@ -48,14 +48,14 @@
             <!-- 注意路径：这里指向你的 controllers.yaml -->
             <parameters>$(find car_bringup)/config/controllers.yaml</parameters>
             <ros>
-                <!-- 重映射一些官方控制器的话题 -->
-                <remapping>/ackermann_steering_controller/tf_odometry:=/tf</remapping>
-                <remapping>/ackermann_steering_controller/odometry:=/odom</remapping>
+                <!-- 重映射一些官方控制器的话题（控制器改名为 r5_steering_controller 后同步改） -->
+                <remapping>/r5_steering_controller/tf_odometry:=/tf</remapping>
+                <remapping>/r5_steering_controller/odometry:=/odom</remapping>
                 <!-- controllers.yaml 中 use_stamped_vel 为 false 时控制器订阅
                      ~/reference_unstamped；这里把它映射成标准的 /cmd_vel -->
                 <!-- 注意：URDF 注释里不要出现 ASCII 的“冒号+空格”，
                      gazebo_ros2_control 会把 robot_description 当作参数覆盖规则解析 -->
-                <remapping>/ackermann_steering_controller/reference_unstamped:=/cmd_vel</remapping>
+                <remapping>/r5_steering_controller/reference_unstamped:=/cmd_vel</remapping>
             </ros>
         </plugin>
     </gazebo>

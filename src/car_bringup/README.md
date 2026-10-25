@@ -137,6 +137,17 @@ ros2 run car_bringup plan_inspector.py
 规划器没给倒车段，先查 Smac 的 `reverse_penalty`；有 R 段则去查 MPPI
 是否肯执行（看 `/cmd_vel` 有没有负速度）。
 
+### R5 控制器三项验收
+
+```bash
+ros2 run car_bringup acceptance_test.py            # 默认 vx=0.5
+ros2 run car_bringup acceptance_test.py --vx 1.0   # 高速场景（a_lat 限幅生效区间）
+```
+
+验收加速度限幅（斜坡）、速度相关转向限幅（ω 上限）、转向速率限幅
+（dφ/dt 上限）三项，输出 PASS/FAIL 报告。逐行代码解析、踩坑实录与
+"修改预测表"见 `src/r5_steering_controller/STAGE1_GUIDE.md`。
+
 正常左转时（`vx=0.1, wz=0.3`）应看到：
 
 - `right_front_steer_joint` ≈ `+0.263 rad`（外侧轮，转角小）

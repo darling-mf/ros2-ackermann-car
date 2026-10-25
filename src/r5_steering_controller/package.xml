@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>r5_steering_controller</name>
+  <version>0.1.0</version>
+  <description>
+    TARKBOT R5 Ackermann controller. Fork of ackermann_steering_controller with
+    two real-car features: acceleration limiting (protects the AT8236 driver /
+    current budget) and speed-dependent steering limiting (limits lateral
+    acceleration to prevent slipping at 1.2 m/s).
+  </description>
+  <maintainer email="darling@ros.com">mjf</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- 直接继承 ackermann 控制器：只叠加行为，不复制运动学代码 -->
+  <depend>ackermann_steering_controller</depend>
+  <depend>controller_interface</depend>
+  <depend>hardware_interface</depend>
+  <depend>pluginlib</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

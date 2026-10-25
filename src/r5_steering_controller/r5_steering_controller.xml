@@ -1,0 +1,11 @@
+<library path="r5_steering_controller">
+  <class name="r5_steering_controller/R5SteeringController"
+         type="r5_steering_controller::R5SteeringController"
+         base_class_type="controller_interface::ChainableControllerInterface">
+    <description>
+      Ackermann controller for the TARKBOT R5 chassis: adds acceleration
+      limiting and speed-dependent steering limiting on top of
+      ackermann_steering_controller.
+    </description>
+  </class>
+</library>
