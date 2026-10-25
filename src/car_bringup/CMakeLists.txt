@@ -12,8 +12,10 @@ install(
 # 控制链路自检脚本：ros2 run car_bringup drive_test.py --vx 0.1 --wz 0.3
 # 全局路径倒车段检查：ros2 run car_bringup plan_inspector.py
 # R5 控制器三项验收：ros2 run car_bringup acceptance_test.py
+# PP/Stanley/LQR 跟踪对比：ros2 run car_bringup path_tracker.py --tracker lqr
 install(
   PROGRAMS scripts/drive_test.py scripts/plan_inspector.py scripts/acceptance_test.py
+           scripts/path_tracker.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

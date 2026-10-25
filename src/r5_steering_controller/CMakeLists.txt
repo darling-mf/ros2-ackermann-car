@@ -44,7 +44,7 @@ install(
   LIBRARY DESTINATION lib
 )
 
-install(FILES STAGE1_GUIDE.md DESTINATION share/${PROJECT_NAME})
+install(FILES STAGE1_GUIDE.md EXPERIMENT_LOG.md DESTINATION share/${PROJECT_NAME})
 
 ament_export_targets(export_r5_steering_controller HAS_LIBRARY_TARGET)
 ament_export_dependencies(${THIS_PACKAGE_INCLUDE_DEPENDS})
