@@ -1,5 +1,8 @@
 # R5 小车全栈架构详解 —— 谁是谁、谁管谁、指令怎么流
 
+> 说明：本文是**控制层内部深读**（类继承/control.xacro/controllers.yaml）。
+> 全栈分层、导航/规划/雷达与改动方法见 `docs/ENGINEERING_HANDOVER.md`。
+
 > 本文回答的问题：每个文件夹/文件是干嘛的？谁是上层谁是下层？谁发指令、
 > 谁收指令、谁执行？为什么既要写 .yaml 又要写 .cpp？消息接口改没改？
 > ChainableControllerInterface 到底在哪个文件里？

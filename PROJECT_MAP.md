@@ -20,7 +20,8 @@
 ~/car_ws/                              # colcon 工作区根
 ├── README.md                        # 项目入口（状态/命令/文档索引）
 ├── PROJECT_MAP.md                   # ← 本文件（总账）
-├── docs/READING_GUIDE.md            # 阅读顺序 + S4/S6 报告 + 雷达/轴距指南
+├── docs/ENGINEERING_HANDOVER.md     # 【交接】全栈架构/接口/改动指南/学习路线
+├── docs/READING_GUIDE.md            # 文件定位 + S4/S6 报告 + 雷达/轴距
 ├── patches/                         # ros2_controllers 补丁（上游修改归档）
 ├── firmware/openctr_b20/            # S6 固件模块（纯 C，主机单测通过）
 ├── vendor/                          # 厂家源码（UTF-8/GBK 两版）与 PDF 手册

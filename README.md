@@ -69,7 +69,8 @@ ros2 run r5_serial serial_bridge --port /dev/pts/N
 
 | 文档 | 内容 |
 |---|---|
-| `docs/READING_GUIDE.md` | 阅读顺序 + S4/S6 报告 + 2D 雷达选型 + 轴距实测 |
+| `docs/ENGINEERING_HANDOVER.md` | **全栈架构交接**：分层/接口/运动控制/规划/雷达/学习路线 |
+| `docs/READING_GUIDE.md` | 文件定位 + 阅读顺序 + S4/S6 报告 + 雷达选型 + 轴距实测 |
 | `PROJECT_MAP.md` | 文件树全景 + 进度总账 + 命令速查 |
 | `src/car_bringup/CONTROL_DEBUG_NOTES.md` | S0 八大 bug 的根因切割与方法论 |
 | `src/car_bringup/ROADMAP_TO_REAL.md` | S0~S9 实机路线图与完成判据 |
