@@ -28,10 +28,14 @@
             <update_rate>100</update_rate>
             <!-- 🔥 核心修复：必须配置噪声参数，否则 Gazebo 不输出数据 -->
             <imu>
+                <!-- 噪声按实车 MPU6050 量级设置（一切以实际为准）：
+                     陀螺零偏 0.005 rad/s ≈ 17°/min（未校准的典型残余零偏），
+                     噪声 stddev 1e-3 rad/s。之前 2e-4/7.5e-6 的"理想 IMU"
+                     会让融合实验看不到价值——仿真保真度决定实验意义。 -->
                 <angular_velocity>
-                    <x><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev><bias_mean>0.0000075</bias_mean><bias_stddev>8e-6</bias_stddev></noise></x>
-                    <y><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev><bias_mean>0.0000075</bias_mean><bias_stddev>8e-6</bias_stddev></noise></y>
-                    <z><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev><bias_mean>0.0000075</bias_mean><bias_stddev>8e-6</bias_stddev></noise></z>
+                    <x><noise type="gaussian"><mean>0.0</mean><stddev>1e-3</stddev><bias_mean>0.005</bias_mean><bias_stddev>0.001</bias_stddev></noise></x>
+                    <y><noise type="gaussian"><mean>0.0</mean><stddev>1e-3</stddev><bias_mean>0.005</bias_mean><bias_stddev>0.001</bias_stddev></noise></y>
+                    <z><noise type="gaussian"><mean>0.0</mean><stddev>1e-3</stddev><bias_mean>0.005</bias_mean><bias_stddev>0.001</bias_stddev></noise></z>
                 </angular_velocity>
                 <linear_acceleration>
                     <x><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev><bias_mean>0.1</bias_mean><bias_stddev>0.001</bias_stddev></noise></x>

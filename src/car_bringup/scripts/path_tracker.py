@@ -195,24 +195,62 @@ class LQRTracker(Tracker):
       e⁺   = e + v·dt·Δψ                     （车头偏左 → 横向误差向左增长）
       Δψ⁺  = Δψ + (v·dt/L)·δ − v·dt·κ        （转向和路径曲率都改变航向差）
     A=[[1, v·dt],[0,1]], B=[[0],[v·dt/L]]，解 DARE 得 K。
-    特点：Q/R 显式权衡"收敛快慢 vs 控制平顺"，有最优性框架；
-    局限：只在设计速度附近最优（实车会按 v 增益调度）。
+
+    增益调度（默认开）：实车 LQR 的标准做法。设计速度只有一个时，
+    加速斜坡期间实际 v 远低于设计值 → B 矩阵失配 → 增益"用错档位"
+    （基线实验里 LQR 收敛最慢的根因）。K(v) 查表按实测速度切换。
+    v→0 时 B→0 系统趋于不可控、K 发散，所以表设下限 v_min——
+    与 Stanley 的 v 整流、MPPI 的速度下限是同一个道理：
+    【所有基于模型的控制器都需要速度下限】。
     """
 
     def __init__(self, args, v, dt):
         super().__init__(args)
-        L, w = args.wheelbase, args.wheelbase
-        A = np.array([[1.0, v * dt], [0.0, 1.0]])
-        B = np.array([[0.0], [v * dt / L]])
-        Q = np.diag([args.q_e, args.q_psi])
-        R = np.array([[args.r_delta]])
-        self.K = solve_dare(A, B, Q, R)
-        print(f'[LQR] K = {self.K.round(4).tolist()}  '
-              f'(Q=diag({args.q_e},{args.q_psi}), R={args.r_delta}, v={v})')
+        self.args = args
+        self.dt = dt
+        self.L = args.wheelbase
+        self.Q = np.diag([args.q_e, args.q_psi])
+        self.R = np.array([[args.r_delta]])
+        self.v_min, self.v_max, self.v_step = 0.10, 1.50, 0.05
+        self._table = {}
+        if args.no_schedule:
+            self.K = self._solve_for(v)
+            self._cur = None
+            print(f'[LQR] 固定增益 K = {self.K.round(4).tolist()}'
+                  f'（设计速度 {v}，--no-schedule 基线）')
+        else:
+            n = int(round((self.v_max - self.v_min) / self.v_step)) + 1
+            for i in range(n):
+                vs = self.v_min + i * self.v_step
+                self._table[round(vs, 3)] = self._solve_for(vs)
+            self.K = self._lookup(v)
+            self._cur = round(self._vkey(v), 3)
+            self.switch_count = 0
+            print(f'[LQR] 增益调度: K(v) 表 {self.v_min:.2f}–{self.v_max:.2f} m/s '
+                  f'步长 {self.v_step}（{len(self._table)} 组），'
+                  f'初始 K = {self.K.round(4).tolist()}')
+
+    def _solve_for(self, v):
+        A = np.array([[1.0, v * self.dt], [0.0, 1.0]])
+        B = np.array([[0.0], [v * self.dt / self.L]])
+        return solve_dare(A, B, self.Q, self.R)
+
+    def _vkey(self, v):
+        return self.v_min + round((v - self.v_min) / self.v_step) * self.v_step
+
+    def _lookup(self, v):
+        v = min(max(v, self.v_min), self.v_max)
+        return self._table[round(self._vkey(v), 3)]
 
     def steer(self, e, dpsi, kappa, v, **kw):
+        if not self.args.no_schedule:
+            key = round(self._vkey(max(v, self.v_min)), 3)
+            if key != self._cur:
+                self._cur = key
+                self.K = self._table[key]
+                self.switch_count += 1
         u = -self.K @ np.array([e, dpsi])
-        ff = math.atan(self.args.wheelbase * kappa)    # 曲率前馈（自行车稳态）
+        ff = math.atan(self.L * kappa)                 # 曲率前馈（自行车稳态）
         return float(u[0]) + self.args.ff_gain * ff
 
 
@@ -235,6 +273,8 @@ def main():
     p.add_argument('--q-psi', type=float, default=4.0, help='LQR 航向误差权重')
     p.add_argument('--r-delta', type=float, default=25.0, help='LQR 转角代价')
     p.add_argument('--ff-gain', type=float, default=1.0, help='LQR 曲率前馈增益')
+    p.add_argument('--no-schedule', action='store_true',
+                   help='LQR 用固定增益（复现基线/对照实验）')
     p.add_argument('--rate', type=float, default=30.0, help='控制频率 Hz')
     p.add_argument('--timeout', type=float, default=25.0, help='单次实验超时 s')
     args = p.parse_args()
@@ -252,7 +292,7 @@ def main():
             rclpy.spin_once(node, timeout_sec=0.01)
 
     def publish(v, wz):
-        m = Twist()
+        m = Twist() 
         m.linear.x = v
         m.angular.z = wz
         pub.publish(m)
@@ -287,6 +327,7 @@ def main():
     print(f'实验: tracker={args.tracker} path={args.path} v={args.v} '
           f'总长={path.total_s:.2f}m')
     samples = []          # (t, s, e, dpsi)
+    sat_cycles = 0        # 转向指令顶机械限位的周期数（诊断"饱和主导"用）
     t0 = time.monotonic()
     done = False
     while time.monotonic() - t0 < args.timeout and not done:
@@ -306,9 +347,11 @@ def main():
             publish(0.0, 0.0)
             break
 
-        delta = tracker.steer(e, dpsi, kap, v_meas, path=path, s_now=s,
-                              pose=(x, y, th))
-        delta = max(-MAX_STEER, min(MAX_STEER, delta))
+        delta_raw = tracker.steer(e, dpsi, kap, v_meas, path=path, s_now=s,
+                                  pose=(x, y, th))
+        if abs(delta_raw) >= MAX_STEER - 1e-3:
+            sat_cycles += 1
+        delta = max(-MAX_STEER, min(MAX_STEER, delta_raw))
         wz = args.v * math.tan(delta) / args.wheelbase
         publish(args.v, wz)
         samples.append((time.monotonic() - t0, s, e, dpsi))
@@ -351,6 +394,10 @@ def main():
         print(f'收敛时间(|e|<0.05 持续0.5s): {settle:.2f}s')
     print(f'稳态(s>0.5m): RMS|e|={rms_e:.4f} m | max|e|={max_e:.4f} m | '
           f'RMS|Δψ|={math.degrees(rms_psi):.2f}°')
+    sat_pct = 100.0 * sat_cycles / max(len(samples), 1)
+    print(f'诊断: 转向饱和占比 {sat_pct:.1f}%（{sat_cycles}/{len(samples)} 周期）'
+          + (f' | K 切换 {tracker.switch_count} 次'
+             if hasattr(tracker, 'switch_count') else ''))
     return 0
 
 

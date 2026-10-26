@@ -59,4 +59,24 @@
             </ros>
         </plugin>
     </gazebo>
+
+    <!-- 地面真值通道（gazebo_ros_p3d）—— 一切量化验证的基准 -->
+    <!-- ⚠️ 两个实测教训：
+         1. 默认话题名是 odom（不是 ~/out），remap 必须写 odom:=xxx，
+            否则它会跟控制器抢 /odom（同名话题双发布者，数据交叉污染）；
+         2. frame_name 是“参考连杆名”，不填才是世界系——填 world 会被
+            当作模型内连杆查找。 -->
+    <gazebo>
+        <plugin name="p3d_ground_truth" filename="libgazebo_ros_p3d.so">
+            <update_rate>50.0</update_rate>
+            <!-- 注意：base_link 与 base_footprint 是 fixed joint，被 Gazebo
+                 固定关节合并（lumping）成一个连杆，幸存名是模型根 base_footprint。
+                 用 gz model -m ackermann_car -i 可查实际连杆名。 -->
+            <body_name>base_footprint</body_name>
+            <gaussian_noise>0.0</gaussian_noise>
+            <ros>
+                <remapping>odom:=ground_truth</remapping>
+            </ros>
+        </plugin>
+    </gazebo>
 </robot>

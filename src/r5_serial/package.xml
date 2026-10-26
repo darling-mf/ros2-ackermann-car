@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>r5_serial</name>
+  <version>0.1.0</version>
+  <description>
+    S5: X-Protocol serial bridge between ROS 2 and the OpenCTR B20 (TARKBOT R5),
+    plus a virtual STM32 simulator over a pty for hardware-free integration
+    testing. Protocol constants extracted from the vendor firmware source
+    (OpenCTR_B20V11_AKM V1.00.241015).
+  </description>
+  <maintainer email="darling@ros.com">mjf</maintainer>
+  <license>Apache-2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
