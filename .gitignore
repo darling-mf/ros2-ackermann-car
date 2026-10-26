@@ -12,6 +12,14 @@ src/FAST_LIO/
 src/FAST-LIO-SAM-QN
 src/livox_ros_driver2
 
+# 外部上游源码（按需 clone；对 ros2_controllers 的修改归档在 patches/）
+src/ros2_control/
+src/ros2_controllers/
+src/gz_ros2_control/
+
+# 临时截图
+src/r5_steering_controller/image.png
+
 # 忽略所有 PCD 点云数据文件，防止仓库爆炸
 *.pcd
 

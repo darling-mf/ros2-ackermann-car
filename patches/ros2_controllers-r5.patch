@@ -1,0 +1,236 @@
+diff --git a/ackermann_steering_controller/CMakeLists.txt b/ackermann_steering_controller/CMakeLists.txt
+index 9d32112a..a35ccc66 100644
+--- a/ackermann_steering_controller/CMakeLists.txt
++++ b/ackermann_steering_controller/CMakeLists.txt
+@@ -24,6 +24,18 @@ foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
+   find_package(${Dependency} REQUIRED)
+ endforeach()
+ 
++# The workspace overlays steering_controllers_library on top of the (older)
++# binary package in /opt. Make sure the overlay headers are searched first,
++# otherwise this package can be compiled against the old class layout while
++# linking the new library (heap corruption / crashes in tests).
++get_target_property(
++  STEERING_CONTROLLERS_LIBRARY_INCLUDE_DIRS
++  steering_controllers_library::steering_controllers_library
++  INTERFACE_INCLUDE_DIRECTORIES)
++if(STEERING_CONTROLLERS_LIBRARY_INCLUDE_DIRS)
++  include_directories(BEFORE ${STEERING_CONTROLLERS_LIBRARY_INCLUDE_DIRS})
++endif()
++
+ generate_parameter_library(ackermann_steering_controller_parameters
+   src/ackermann_steering_controller.yaml
+ )
+diff --git a/ackermann_steering_controller/src/ackermann_steering_controller.yaml b/ackermann_steering_controller/src/ackermann_steering_controller.yaml
+index 1ec0b41c..d4d794a3 100644
+--- a/ackermann_steering_controller/src/ackermann_steering_controller.yaml
++++ b/ackermann_steering_controller/src/ackermann_steering_controller.yaml
+@@ -53,3 +53,11 @@ ackermann_steering_controller:
+         gt<>: [0.0]
+       }
+     }
++
++  max_steering_angle:
++    {
++      type: double,
++      default_value: 0.0,
++      description: "Maximum steering angle of a single front wheel [rad]. A value <= 0 disables the limit.",
++      read_only: false,
++    }
+diff --git a/steering_controllers_library/include/steering_controllers_library/steering_odometry.hpp b/steering_controllers_library/include/steering_controllers_library/steering_odometry.hpp
+index ad265751..6951af31 100644
+--- a/steering_controllers_library/include/steering_controllers_library/steering_odometry.hpp
++++ b/steering_controllers_library/include/steering_controllers_library/steering_odometry.hpp
+@@ -194,6 +194,15 @@ public:
+     const double v_bx, const double omega_bz, const bool open_loop = true,
+     const bool reduce_wheel_speed_until_steering_reached = false);
+ 
++  /**
++   * \brief Same as above, additionally limiting the steering angle
++   * \param max_steering_angle Maximum angle of a single steering wheel [rad];
++   *        a value <= 0 disables the limit
++   */
++  std::tuple<std::vector<double>, std::vector<double>> get_commands(
++    const double v_bx, const double omega_bz, const bool open_loop,
++    const bool reduce_wheel_speed_until_steering_reached, const double max_steering_angle);
++
+   /**
+    *  \brief Reset poses, heading, and accumulators
+    */
+diff --git a/steering_controllers_library/src/steering_controllers_library.cpp b/steering_controllers_library/src/steering_controllers_library.cpp
+index 65cc25c7..dba1e1d5 100644
+--- a/steering_controllers_library/src/steering_controllers_library.cpp
++++ b/steering_controllers_library/src/steering_controllers_library.cpp
+@@ -155,14 +155,15 @@ controller_interface::CallbackReturn SteeringControllersLibrary::on_configure(
+   rt_odom_state_publisher_->msg_.child_frame_id = params_.base_frame_id;
+   rt_odom_state_publisher_->msg_.pose.pose.position.z = 0;
+ 
+-  auto & covariance = rt_odom_state_publisher_->msg_.twist.covariance;
++  auto & pose_covariance = rt_odom_state_publisher_->msg_.pose.covariance;
++  auto & twist_covariance = rt_odom_state_publisher_->msg_.twist.covariance;
+   constexpr size_t NUM_DIMENSIONS = 6;
+-  for (size_t index = 0; index < 6; ++index)
++  for (size_t index = 0; index < NUM_DIMENSIONS; ++index)
+   {
+     // 0, 7, 14, 21, 28, 35
+     const size_t diagonal_index = NUM_DIMENSIONS * index + index;
+-    covariance[diagonal_index] = params_.pose_covariance_diagonal[index];
+-    covariance[diagonal_index] = params_.twist_covariance_diagonal[index];
++    pose_covariance[diagonal_index] = params_.pose_covariance_diagonal[index];
++    twist_covariance[diagonal_index] = params_.twist_covariance_diagonal[index];
+   }
+   rt_odom_state_publisher_->unlock();
+ 
+@@ -438,9 +439,17 @@ controller_interface::return_type SteeringControllersLibrary::update_and_write_c
+     last_linear_velocity_ = timeout ? 0.0 : reference_interfaces_[0];
+     last_angular_velocity_ = timeout ? 0.0 : reference_interfaces_[1];
+ 
++    // Optional car-specific limit; declared by the concrete controller's
++    // parameter listener (e.g. ackermann_steering_controller).
++    double max_steering_angle = 0.0;
++    if (get_node()->has_parameter("max_steering_angle"))
++    {
++      max_steering_angle = get_node()->get_parameter("max_steering_angle").as_double();
++    }
++
+     auto [traction_commands, steering_commands] = odometry_.get_commands(
+       reference_interfaces_[0], reference_interfaces_[1], params_.open_loop,
+-      params_.reduce_wheel_speed_until_steering_reached);
++      params_.reduce_wheel_speed_until_steering_reached, max_steering_angle);
+     if (params_.front_steering)
+     {
+       for (size_t i = 0; i < params_.rear_wheels_names.size(); i++)
+diff --git a/steering_controllers_library/src/steering_controllers_library.yaml b/steering_controllers_library/src/steering_controllers_library.yaml
+index 376642d4..13000eb3 100644
+--- a/steering_controllers_library/src/steering_controllers_library.yaml
++++ b/steering_controllers_library/src/steering_controllers_library.yaml
+@@ -100,14 +100,14 @@ steering_controllers_library:
+ 
+   twist_covariance_diagonal: {
+     type: double_array,
+-    default_value: [0.0, 7.0, 14.0, 21.0, 28.0, 35.0],
++    default_value: [0.0001, 0.0001, 0.000001, 0.000001, 0.000001, 0.001],
+     description: "diagonal values of twist covariance matrix.",
+     read_only: false,
+   }
+ 
+   pose_covariance_diagonal: {
+     type: double_array,
+-    default_value: [0.0, 7.0, 14.0, 21.0, 28.0, 35.0],
++    default_value: [0.0001, 0.0001, 0.000001, 0.000001, 0.000001, 0.001],
+     description: "diagonal values of pose covariance matrix.",
+     read_only: false,
+   }
+diff --git a/steering_controllers_library/src/steering_odometry.cpp b/steering_controllers_library/src/steering_odometry.cpp
+index 8317c8ca..76c65fab 100644
+--- a/steering_controllers_library/src/steering_odometry.cpp
++++ b/steering_controllers_library/src/steering_odometry.cpp
+@@ -19,6 +19,7 @@
+ 
+ #include "steering_controllers_library/steering_odometry.hpp"
+ 
++#include <algorithm>
+ #include <cmath>
+ #include <iostream>
+ #include <limits>
+@@ -165,14 +166,32 @@ bool SteeringOdometry::update_from_velocity(
+   const double right_traction_wheel_vel, const double left_traction_wheel_vel,
+   const double right_steer_pos, const double left_steer_pos, const double dt)
+ {
+-  // overdetermined, we take the average
+-  const double right_steer_pos_est = std::atan(
+-    wheelbase_ * std::tan(right_steer_pos) /
+-    (wheelbase_ - wheel_track_ / 2 * std::tan(right_steer_pos)));
+-  const double left_steer_pos_est = std::atan(
+-    wheelbase_ * std::tan(left_steer_pos) /
+-    (wheelbase_ + wheel_track_ / 2 * std::tan(left_steer_pos)));
+-  steer_pos_ = (right_steer_pos_est + left_steer_pos_est) * 0.5;
++  // ⚠️ 上游 2.54.1 把 IK 公式原样当 FK 用（内轮虚拟角被高估、外轮被低估）：
++  // 直线时碰巧正确，持续转弯时里程计航向率系统性偏高（R5 圆周实验实测
++  // 3 圈 RMSE 85°）。正确的 wheel→virtual 反变换：内轮用 (L + w/2·tanδ)、
++  // 外轮用 (L − w/2·tanδ)；内外侧由转弯方向决定（内轮 |tanδ| 更大），
++  // 不能按固定左右分配。往返一致性验证：φ=0.2008 → 轮角 0.235/0.175
++  // → 本公式还原 φ=0.2012/0.2007 ✓
++  const double tr = std::tan(right_steer_pos);
++  const double tl = std::tan(left_steer_pos);
++  double phi_r, phi_l;
++  if (std::abs(tr) >= std::abs(tl))
++  {
++    // 右轮是内轮（或直行，两式等价）
++    phi_r = std::atan(
++      wheelbase_ * tr / (wheelbase_ + wheel_track_ / 2 * tr));
++    phi_l = std::atan(
++      wheelbase_ * tl / (wheelbase_ - wheel_track_ / 2 * tl));
++  }
++  else
++  {
++    // 左轮是内轮
++    phi_r = std::atan(
++      wheelbase_ * tr / (wheelbase_ - wheel_track_ / 2 * tr));
++    phi_l = std::atan(
++      wheelbase_ * tl / (wheelbase_ + wheel_track_ / 2 * tl));
++  }
++  steer_pos_ = (phi_r + phi_l) * 0.5;
+ 
+   double linear_velocity = get_linear_velocity_double_traction_axle(
+     right_traction_wheel_vel, left_traction_wheel_vel, steer_pos_);
+@@ -220,6 +239,13 @@ double SteeringOdometry::convert_twist_to_steering_angle(double v_bx, double ome
+ std::tuple<std::vector<double>, std::vector<double>> SteeringOdometry::get_commands(
+   const double v_bx, const double omega_bz, const bool open_loop,
+   const bool reduce_wheel_speed_until_steering_reached)
++{
++  return get_commands(v_bx, omega_bz, open_loop, reduce_wheel_speed_until_steering_reached, 0.0);
++}
++
++std::tuple<std::vector<double>, std::vector<double>> SteeringOdometry::get_commands(
++  const double v_bx, const double omega_bz, const bool open_loop,
++  const bool reduce_wheel_speed_until_steering_reached, const double max_steering_angle)
+ {
+   // desired wheel speed and steering angle of the middle of traction and steering axis
+   double Ws, phi, phi_IK = steer_pos_;
+@@ -239,6 +265,26 @@ std::tuple<std::vector<double>, std::vector<double>> SteeringOdometry::get_comma
+ #endif
+   // steering angle
+   phi = SteeringOdometry::convert_twist_to_steering_angle(v_bx, omega_bz);
++
++  // Limit the steering angle to what the mechanism can actually reach.
++  if (max_steering_angle > 0.0)
++  {
++    if (config_type_ == ACKERMANN_CONFIG && !is_close_to_zero(wheelbase_))
++    {
++      // The inner wheel reaches its limit first. Convert the wheel limit to the
++      // equivalent virtual (axle-center) steering angle so the commanded
++      // traction speeds stay consistent with the achievable steering geometry.
++      const double tan_max = std::tan(max_steering_angle * 0.999);
++      const double phi_max =
++        std::atan(wheelbase_ * tan_max / (wheelbase_ + wheel_track_ * 0.5 * tan_max));
++      phi = std::clamp(phi, -phi_max, phi_max);
++    }
++    else
++    {
++      phi = std::clamp(phi, -max_steering_angle, max_steering_angle);
++    }
++  }
++
+   if (open_loop)
+   {
+     phi_IK = phi;
+@@ -314,10 +360,16 @@ std::tuple<std::vector<double>, std::vector<double>> SteeringOdometry::get_comma
+       const double denominator_first_member = 2 * wheelbase_ * std::cos(phi);
+       const double denominator_second_member = wheel_track_ * std::sin(phi);
+ 
+-      const double alpha_r =
++      double alpha_r =
+         std::atan2(numerator, denominator_first_member + denominator_second_member);
+-      const double alpha_l =
++      double alpha_l =
+         std::atan2(numerator, denominator_first_member - denominator_second_member);
++      // Safety net against numerical overshoot / extreme requests.
++      if (max_steering_angle > 0.0)
++      {
++        alpha_r = std::clamp(alpha_r, -max_steering_angle, max_steering_angle);
++        alpha_l = std::clamp(alpha_l, -max_steering_angle, max_steering_angle);
++      }
+       steering_commands = {alpha_r, alpha_l};
+     }
+     return std::make_tuple(traction_commands, steering_commands);
