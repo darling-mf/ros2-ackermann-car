@@ -29,6 +29,10 @@ source install/setup.bash
 # 仿真（带界面 / 无界面）
 ros2 launch car_bringup gazebo.launch.py
 ros2 launch car_bringup gazebo.launch.py gui:=false rviz:=false
+
+# 一键仿真 + Nav2 + RViz（默认；Nav2 只能起一套）
+ros2 launch car_bringup sim_nav2.launch.py
+ros2 run car_bringup cleanup_sim.sh          # 出现重复 Nav2/goal 无响应时先清理
 ros2 control list_controllers        # joint_state_broadcaster + r5_steering_controller
 
 # 控制自检 / 验收 / 跟踪对比

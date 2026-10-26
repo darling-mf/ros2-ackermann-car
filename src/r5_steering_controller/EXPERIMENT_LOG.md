@@ -318,3 +318,13 @@ ros2 run car_bringup path_tracker.py --tracker lqr --path line --offset 0.3 --q-
 | **数据** | 5/5 PASS；β=0.284 rad（vx=0.3,wz=0.6）、内轮 19.2°、最小半径钳位生效 |
 | **关键发现** | 厂家 `ax_kinematics.c:107` 把弧度又乘 0.01745（二次转换），右前轮角恒≈0.2°；我们的实现改为正确的 `atan(H/(R−W/2))` + 可标定舵机 gain/offset，待实车标定 |
 | **教训** | 把“硬件相关”和“纯逻辑”切开，纯逻辑就能在 PC 上 TDD；固件质量不再依赖“烧进去看” |
+
+## Round 16：Nav2 “导航不了”的元凶——重复启动（2026-10-26）
+
+| 环节 | 内容 |
+|---|---|
+| 症状 | RViz 设初始位姿后 `Send goal call failed`；TF `two or more unconnected trees`；planner `Starting point in lethal space`；MPPI `Optimizer fail to compute path` |
+| 破案 | `ros2 node list` 显示 amcl/bt_navigator/controller_server 各有 3~6 个实例：3 套 nav2/sim_nav2 launch + 旧容器被 respawn。多套 AMCL 抢 map→odom、多套 controller 抢 /cmd_vel，goal 无法完成 |
+| 修复 | 新增 `cleanup_sim.sh`（按进程名清理 launch/容器/Gazebo/RViz）+ 单命令 `sim_nav2.launch.py`；AMCL 用原生 `set_initial_pose` 自动初始化（不再依赖外部节点） |
+| 验证 | 清理后单套 server 全 active；节点唯一性各=1；前方目标 (0.8,0) `SUCCEEDED`，车到 x≈0.68；倒车目标能倒车但 MPPI 在终点附近跟踪慢（Humble 已知局限） |
+| 教训 | ① “导航不了”先查进程/节点重复，再查算法；② launch 崩溃后容器可能被 respawn，必须连 launch 进程一起杀；③ 实验前固定“清理→单套启动→唯一性检查”三步 |

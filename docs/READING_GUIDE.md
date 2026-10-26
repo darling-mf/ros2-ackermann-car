@@ -63,17 +63,44 @@
 ### 怎么复现
 
 ```bash
-ros2 launch car_bringup gazebo.launch.py gui:=false rviz:=false
-ros2 launch car_bringup nav2.launch.py rviz:=false
-# 另一个终端：设初始位姿
-ros2 topic pub --once /initialpose geometry_msgs/msg/PoseWithCovarianceStamped \
- "{header: {frame_id: map}, pose: {pose: {position: {x: 0.0, y: 0.0}, orientation: {w: 1.0}}, covariance: [0.25,0,0,0,0,0, 0,0.25,0,0,0,0, 0,0,0,0,0,0, 0,0,0,0,0,0, 0,0,0,0,0,0, 0,0,0,0,0,0.07]}}"
-# 发正后方目标
+# 0) 先清理旧 Nav2/仿真（重复启动是本项目导航失败的头号原因）
+ros2 run car_bringup cleanup_sim.sh
+
+# 1) 一条命令：Gazebo + 控制器 + Nav2 + RViz
+ros2 launch car_bringup sim_nav2.launch.py
+#    无界面：gui:=false rviz:=false
+
+# 2) RViz 里用 "Nav2 Goal" 点一个目标；仿真 AMCL 已自动设初始位姿 (0,0)
+# 3) 命令行验证（正后方目标，yaw 应基本不变 → 倒车）
 ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
  "{pose: {header: {frame_id: map}, pose: {position: {x: -1.0, y: 0.0}, orientation: {w: 1.0}}}}"
-# 看最终位姿（yaw 应仍≈0）
 gz model -m ackermann_car -p
 ```
+
+> **Nav2 只能有一套**：`ros2 node list | grep -E "amcl|bt_navigator|controller_server"`
+> 每个名字应只出现一次。出现多个（旧 launch 未退出/被 respawn）会导致
+> `TF has two or more unconnected trees`、`Send goal call failed`、规划器
+> "Starting point in lethal space"，先用 `cleanup_sim.sh` 清干净。
+
+### S4 故障复盘：为什么“Nav2 导航不了”（2026-10-26）
+
+现场症状：RViz 里设了 2D Pose Estimate，但 `Send goal call failed`；
+日志出现 `Tf has two or more unconnected trees`、planner
+`Starting point in lethal space`。
+
+根因：**同时跑了 3 套 Nav2 launch + 1 个旧节点**（旧 launch 的容器
+被 respawn 复活），`ros2 node list` 里 amcl/bt_navigator/controller_server
+各有 3~6 个实例。多套 AMCL 同时发布 map→odom、多套 controller 抢
+`/cmd_vel`，goal 自然失败。
+
+修复与验证：
+1. `ros2 run car_bringup cleanup_sim.sh` 清掉全部旧 launch/容器/Gazebo；
+2. 只启动一套 `sim_nav2.launch.py`，等待三个 server 都 `active`；
+3. 节点唯一性检查：`amcl/bt_navigator/controller_server/planner_server` 各 1；
+4. 前方目标 (0.8,0) `SUCCEEDED`，车到 x≈0.68；说明单套链路正常。
+
+结论：**本项目“Nav2 出问题”的头号原因不是算法，而是重复启动**。
+每次实验前先清理；不要在多个终端重复 launch。
 
 > 注意：`wz_max` 等 MPPI 参数必须是**浮点**（`1.0` 而非 `1`），否则
 > controller_server configure 报类型错误并 abort。

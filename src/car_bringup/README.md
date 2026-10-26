@@ -74,16 +74,31 @@ ackermann_steering_controller  ackermann_steering_controller/AckermannSteeringCo
 
 ---
 
-## 2.5 自动导航（S4）
+## 2.5 自动导航（S4）—— 推荐一条命令
 
 ```bash
+# 清理旧进程（重要：Nav2 只能有一套，重复启动会 TF 冲突/goal 无响应）
+ros2 run car_bringup cleanup_sim.sh
+
+# 一键：Gazebo + 控制器 + Nav2 + RViz（AMCL 自动设初始位姿 0,0）
+ros2 launch car_bringup sim_nav2.launch.py
+# 无界面：gui:=false rviz:=false
+```
+
+也可以在两个终端分开启动（顺序：先 Gazebo，等控制器 active，再 Nav2）：
+
+```bash
+ros2 launch car_bringup gazebo.launch.py
 ros2 launch car_bringup nav2.launch.py            # 带 RViz
-ros2 launch car_bringup nav2.launch.py rviz:=false
 ```
 
 `nav2.launch.py` 会把 `config/nav2_params.yaml` 真正传给 Nav2，并注入
 `car_navigation/behavior_trees/akm_navigate_*.xml`（无 Spin、BackUp 0.6m）。
-首次启动后需在 RViz 用 2D Pose Estimate 设初始位姿（或发 `/initialpose`）。
+
+- 仿真：`nav2_params.yaml` 的 `amcl.set_initial_pose: true` 会自动设 (0,0,0)；
+- 实车/非原点出生：把它设为 false，在 RViz 用 2D Pose Estimate 设真实位置；
+- **只能启动一套 Nav2**：`ros2 node list | grep -E "amcl|bt_navigator"` 应各只有一个；
+  出现多个就是重复启动，用 `cleanup_sim.sh` 清干净再来。
 
 ## 3. 手动控制
 

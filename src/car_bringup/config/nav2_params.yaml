@@ -39,6 +39,16 @@ amcl:
     z_short: 0.05
     scan_topic: scan
 
+    # 仿真启动时自动给 AMCL 一个初始位姿（map 坐标，车在原点）。
+    # 实车：设为 false，用 RViz 2D Pose Estimate 或 /initialpose。
+    set_initial_pose: true
+    always_reset_initial_pose: false
+    initial_pose:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      yaw: 0.0
+
 bt_navigator:
   ros__parameters:
     use_sim_time: True

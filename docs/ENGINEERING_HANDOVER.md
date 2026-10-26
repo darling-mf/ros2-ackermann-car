@@ -334,9 +334,12 @@ ros2 run car_bringup acceptance_test.py --vx 1.0         # 高速 a_lat 生效�
 ### 6.3 测试与指标
 
 ```bash
-ros2 launch car_bringup gazebo.launch.py gui:=false rviz:=false
-ros2 launch car_bringup nav2.launch.py rviz:=false
-# 设初始位姿后发正后方目标
+# 先清理旧进程（Nav2 只能一套）
+ros2 run car_bringup cleanup_sim.sh
+# 一条命令启动（Gazebo + Nav2 + RViz，AMCL 自动初始位姿）
+ros2 launch car_bringup sim_nav2.launch.py
+# 或：Gazebo 稳定后单独起 Nav2
+# 发正后方目标
 ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
  "{pose: {header: {frame_id: map}, pose: {position: {x: -1.0, y: 0.0}, orientation: {w: 1.0}}}}"
 ros2 run car_bringup plan_inspector.py      # 看 R 段与换向次数
@@ -457,6 +460,8 @@ src/car_description/urdf/car/laser.xacro
 
 | 症状 | 第一动作 | 文件/命令 |
 |---|---|---|
+| **Nav2 点目标无反应 / `Send goal call failed` / TF 两棵树** | **先查是否重复启动**：`ros2 node list \| grep -E "amcl\|bt_navigator"` 应各一个；`ros2 run car_bringup cleanup_sim.sh` 后重来 | §2.1/§6.4 |
+| Nav2 里 planner 说 `Starting point in lethal space` | 初始位姿与实际位置不符：仿真用 `amcl.set_initial_pose`；实车用 RViz 2D Pose Estimate | nav2_params |
 | 控制器不加载 | 读 `Available classes`；`ros2 pkg prefix` | §2.6 |
 | `controller configure` abort | 查参数类型/footprint 一致性 | nav2 日志 |
 | 车不动但控制器 active | `ros2 topic info -v /cmd_vel` 看订阅者 | §2.4 |
