@@ -113,13 +113,22 @@ S8（标定三件套）→ S9（实机集成）。乐观 3~4 周。
 
 **厂商资料（不在 git，本地留存）**
 ```
-~/car_ws/src 外：/tmp/xtark_fw/OpenCTR_B20V11_AKM_V1.00.241015/   # 固件源码（解包）
-    ├── Robot/ax_robot.c/.h      # 50Hz 主任务、0x10 帧载荷、帧号表、R5 参数(轴距0.146!)
-    ├── Driver/ax_uart_pi.c      # X-Protocol 收发状态机（协议权威实现，无看门狗！）
-    ├── Robot/ax_kinematics.c    # 阿克曼 IK/FK + 舵机映射（107 行有单位疑点待实测）
-    └── Robot/ax_control.c       # PS2/APP/SBUS 控制源（ROS 模式不经过这里）
-另有：R5 开发手册/底盘手册/B20 手册/运动学教程/DB20 PID 套件手册（PDF）
+~/car_ws/vendor/
+├── xtark_fw/                                  # ★ 研读标注版（UTF-8，VS Code 直接可读）
+│   ├── OpenCTR_B20V11_AKM_V1.00.241015/
+│   │   ├── Robot/ax_robot.c/.h    # 50Hz 主任务、0x10 帧载荷、帧号表、R5 参数(轴距0.146!)
+│   │   ├── Robot/ax_kinematics.c  # 阿克曼 IK/FK + 舵机映射（P1 缺陷现场，见 README_ANNOTATED）
+│   │   ├── Robot/ax_akm.c         # AX_AKM_WToAngle: vx,vw -> ax_akm_angle（单位 0.001 rad）
+│   │   ├── Robot/ax_speed.c       # 增量式"PID"（Kp 实为积分、Kd 实为比例）
+│   │   ├── Driver/ax_uart4.c      # ★ 真正接收 0x50 的地方（168~176 行）；S1/S2/S3 隐患
+│   │   └── Driver/ax_uart_pi.c    # 旧版镜像实现（B20 不调用，仅对照）
+│   ├── README_ANNOTATED.md        # ★ 导读：目录约定/单位总表/缺陷清单/阅读顺序
+│   └── tools/annotate.py          # 标注脚本（幂等，可重跑）
+├── xtark_fw_original_gbk/                     # 厂商原始树（GBK，Keil 编译烧录用这个）
+└── xtark_docs/                                # 6 份 PDF 手册
 ```
+7 个核心文件共 51 处标注，已验证"剥掉注释后代码与厂商原文件逐字节一致"。
+
 
 ---
 
@@ -174,8 +183,11 @@ ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angula
 
 ## 六、当前最大的三个未知数（都是"实测裁决"型，不阻塞开发）
 
-1. **固件舵机映射疑点**（ax_kinematics.c:107 的 0.01745 系数）：上真机发
-   vw=600 看舵机偏转即可裁决，不转则按手册公式重写；
+1. **固件舵机映射增益偏差**（ax_kinematics.c:107）：读码已定位——`ax_akm_angle`
+   单位是 0.001 rad（ax_akm.c:66 返回 `akm_angle*1000`），107 行把弧度当度数
+   （`*0.01745`）换算一次，120 行又乘 `180/π` 换回一次，两次近似抵消，实际
+   只剩约 **+12% 增益偏差 + 梯形补偿项失效**（并非 57 倍错误）。上真机发
+   vw=600 量舵机偏角即可确认，按 `atan(L/(L/tan δ + w/2))`（弧度）重写为正确版;
 2. **实车几何参数**：轴距 0.146 vs 0.112、轮距 0.160 vs 0.164、R_min 0.35 vs
    0.55——卷尺+满舵画圆一次裁决，同步改 URDF/Nav2/融合节点；
 3. **固件无看门狗**：桥已兜底，S6 加下位机 300ms 看门狗是安全闭环的最后一块。

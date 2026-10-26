@@ -3,9 +3,10 @@
 """X-Protocol 编解码层（对照厂商固件源码逐行核对）。
 
 协议事实全部提取自 OpenCTR_B20V11_AKM V1.00.241015 固件源码：
-  - Driver/ax_uart_pi.c  AX_UART_PI_SendPacket / USART2_IRQHandler
-  - Robot/ax_robot.h     帧号定义（ID_UTX_DATA=0x10 等）
-  - Robot/robot.h        ID_ROS2CRP_VEL=0x50 / IMU=0x51 / AKM=0x5f
+  - Driver/ax_uart4.c     ★ B20 实际收发串口：UART4_IRQHandler / AX_UART4_SendPacket
+  - Driver/ax_uart_pi.c   旧版镜像实现（B20 不调用，仅作状态机对照）
+  - Robot/ax_robot.h      帧号定义（ID_UTX_DATA=0x10 / ID_URX_VEL=0x50 / ID_URX_ANGLE=0x60）
+  - Robot/robot.h         旧版帧号（含 0x51 / 0x5F，B20 的 ax_uart4.c **未实现**）
 
 帧结构（变帧长）：
     AA 55 | LEN | ID | DATA... | CK
@@ -28,8 +29,11 @@ HEADER = b'\xAA\x55'
 # 帧号（与固件 ax_robot.h / robot.h 完全一致）
 ID_UTX_DATA = 0x10      # STM32 -> ROS：50Hz 综合数据（IMU+速度+电压）
 ID_URX_VEL = 0x50       # ROS -> STM32：目标速度 vx,vy,vw（m/s*1000）
-ID_URX_IMU_CAL = 0x51   # ROS -> STM32：IMU 零偏校准指令（手册未写，源码发现）
-ID_URX_AKM_OFFSET = 0x5F  # ROS -> STM32：舵机零偏写值（手册未写，源码发现）
+ID_URX_ANGLE = 0x60     # ROS -> STM32：云台两轴角度（本车不用）
+# 注意：下面两个 ID 只存在于旧版 robot.h / ax_uart_pi.c，
+# B20 的 ax_uart4.c 只解析 0x50 和 0x60 —— 下发 0x51/0x5F 不会报错，但会被静默忽略。
+ID_URX_IMU_CAL = 0x51   # 旧版：IMU 零偏校准指令（B20 未实现，零偏须在上位机自校准）
+ID_URX_AKM_OFFSET = 0x5F  # 旧版：舵机零偏写值（B20 未实现，零偏改 ax_robot.h 的 AKM_ANGLE_OFFSET）
 
 # 0x10 帧载荷布局（20 字节，10 个大端 int16）
 UTX_DATA_LEN = 20
