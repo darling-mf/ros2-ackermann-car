@@ -7,10 +7,10 @@
 
 ## 一、一句话现状
 
-**仿真侧全部闭环**（底盘执行 / 跟踪算法 / 传感器融合 / 串口协议栈，均有量化
-验收与实验文档），**实车侧差 4 步**：S4（Nav2 调优，可无硬件先做）→
-S6（STM32 固件改造，需硬件）→ S7（hardware_interface 插件）→
-S8（标定三件套）→ S9（实机集成）。乐观 3~4 周。
+**仿真侧全部闭环 + S4 倒车实测通过**（底盘执行 / 跟踪算法 / 传感器融合 /
+串口协议栈 / Nav2 倒车分流）。**S6 固件模块已完成并在 PC 上通过单测**，
+剩下实车联调；再往后是 S7（hardware_interface 插件）→ S8（标定）→ S9
+（实机集成）。乐观 3~4 周（取决于硬件与雷达到货）。
 
 ---
 
@@ -18,12 +18,14 @@ S8（标定三件套）→ S9（实机集成）。乐观 3~4 周。
 
 ```
 ~/car_ws/                              # colcon 工作区根
-├── README.md / ROADMAP.md / TROUBLESHOOTING.md    # 早期全局文档（部分过时，以 src 内文档为准）
-├── build/ install/ log/               # colcon 产物（可随时删除重建，重建命令见 §四）
-├── my_final_map/ my_mapping_bag/      # 早期 2D 建图产物（历史资料）
+├── README.md                        # 项目入口（状态/命令/文档索引）
+├── PROJECT_MAP.md                   # ← 本文件（总账）
+├── docs/READING_GUIDE.md            # 阅读顺序 + S4/S6 报告 + 雷达/轴距指南
+├── patches/                         # ros2_controllers 补丁（上游修改归档）
+├── firmware/openctr_b20/            # S6 固件模块（纯 C，主机单测通过）
+├── vendor/                          # 厂家源码（UTF-8/GBK 两版）与 PDF 手册
+├── build/ install/ log/             # colcon 产物（可删重建，命令见 §四）
 └── src/
-    ├── PROJECT_MAP.md                 # ← 本文件
-    │
     ├── car_bringup/                   # 【总装包】启动、配置、全部实验脚本
     │   ├── launch/gazebo.launch.py    #   仿真总启动：Gazebo+控制器加载（含 URDF 去注释
     │   │                              #   修复、GAZEBO_MODEL_PATH、gui/rviz 开关）
@@ -87,7 +89,7 @@ S8（标定三件套）→ S9（实机集成）。乐观 3~4 周。
     │   │                              #   差异表/七项测试/真机 Checklist/疑点清单/所需硬件
     │   └── setup.py, package.xml      #   ament_python 打包（entry_points: virtual_stm32/serial_bridge）
     │
-    ├── car_navigation/                # Nav2 行为树（my_custom_bt.xml 阿克曼化雏形，S4 待接）
+    ├── car_navigation/                # Nav2 行为树（akm_navigate_*.xml：无 Spin、BackUp 0.6m）
     │
     ├── ros2_control/ ros2_controllers/  # 上游源码 overlay（humble 分支）
     │   ├── steering_controllers_library/  # 被我们修改：里程计协方差 bug 修复、
@@ -141,8 +143,8 @@ S8（标定三件套）→ S9（实机集成）。乐观 3~4 周。
 | S2 量化基建（p3d 真值/自检/验收/实验脚本） | ✅ | Round 1~13 实验日志 |
 | S3 传感器融合（互补滤波 v2，实车级 IMU 噪声） | ✅ | 圆周实验融合 11.7° 最优（vs 陀螺 17.4°/轮式 85°） |
 | S5 串口桥+虚拟 STM32 | ✅ | 七项测试（含 3% 坏帧注入、看门狗证据） |
-| **S4 Nav2 调优+倒车分流** | ⬜ 可无硬件先做 | 目标在正后方能"前进+倒车"到达；plan_inspector.py 已备好 |
-| **S6 STM32 固件改造** | ⬜ 需硬件 | 下位机看门狗(300ms)、舵机映射疑点实测、零偏标定流程 |
+| S4 Nav2 调优+倒车分流 | ✅ | 正后方目标 (-1,0) 导航成功；终态 (-0.906,-0.251,yaw≈0.016)，后退 0.93m 不倒头 |
+| **S6 STM32 固件改造** | 🟡 模块完成 | `firmware/openctr_b20` 的协议/看门狗/阿克曼模块 + 主机单测；实车集成待硬件 |
 | **S7 hardware_interface 插件** | ⬜ | 实车跑 drive_test.py，方向与仿真一致；上层零改动 |
 | **S8 标定三件套** | ⬜ | 轮径/轴距/轮距实测裁决（固件 0.146/0.160 vs 手册 0.112/0.164 之争）、编码器 1560 验证、满舵半径≈0.35~0.55 实测 |
 | **S9 实机集成** | ⬜ | 遥控→融合里程计→tracker→Nav2 逐级点亮 |

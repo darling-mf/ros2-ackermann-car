@@ -15,9 +15,11 @@
 
 ## 剩余关键路径（到实机）
 
-### S4：Nav2 决策栈调优（仿真内，约 1 周）—— 可无硬件先做
-- Hybrid-A* 调参 + 倒车分流（plan_inspector.py 已备好）：`reverse_penalty` 下降、MPPI/TEB 对反向路径的行为验证、自定义 BT（去 Spin、加 BackUp）；
-- **完成判据**：目标在正后方场景，小车道过"前进+倒车"组合到达；窄区掉头成功率可量化。
+### S4：Nav2 决策栈调优 + 倒车分流 ✅ **已完成并实测**（2026-10-26）
+- **关键修复**：`nav2.launch.py` 原来没有把 `nav2_params.yaml` 传给 Nav2（一直在用默认参数）；现已用 launch 注入参数文件与阿克曼专用 BT。
+- 参数：`reverse_penalty 2.0→0.8`、`vx_min -0.3`、progress checker 0.2m/15s、到点 0.15m/0.3rad；两个 costmap 改为矩形 footprint（否则 MPPI CostCritic 段错误）。
+- BT：`akm_navigate_to_pose.xml` / `akm_navigate_through_poses.xml`，删除 Spin、BackUp 0.6m/0.12。
+- **实测**：正后方目标 (-1,0) 导航成功；终态 (-0.906,-0.251,yaw≈0.016)，后退 0.93m、航向不变——确实是倒车而非掉头。
 
 ### S5：X-Protocol 串口桥 + 虚拟 STM32 ✅ **已完成**（2026-10-26，无硬件联调）
 - 交付：`src/r5_serial/`（protocol 编解码 + 最小串口层 + 虚拟 STM32 + ROS2 桥）；
@@ -29,18 +31,20 @@
 - 详见 `r5_serial/docs/S5_SERIAL_BRIDGE.md`（协议规格/固件差异表/实测/
   真机 Checklist/疑点清单/所需硬件清单）。
 
-### S6：STM32 下位机固件（有硬件，约 1~2 周）
-- X-Protocol 解析（`AA 55` 同步状态机 + 校验和）；舵机 PWM = β→舵角映射（手册拟合式 −0.0041θ²+1.205θ 或查表，**需实测标定**）；双电机 PID 速度环（厂商源码为底）；MPU6050 驱动 + 零偏上电标定；编码器 390 counts/rev → 轮速上传；
-- **完成判据**：下位机静置时陀螺零偏有标定值；给定轮速指令实测响应时间常数；串口 100Hz 无错帧。
+### S6：STM32 下位机固件 🟡 **模块完成，待硬件联调**
+- **已交付（可在 PC 验证）**：`firmware/openctr_b20/` 的协议编解码、300ms 看门狗、阿克曼几何/舵机参数化；主机单测 5/5 通过（官方示例帧/回环/坏帧/看门狗/几何）。
+- **集成点**：UART4 中断喂协议状态机；`Robot_Task` 20ms 查看门狗并输出舵机/轮速；替换厂家 `ax_kinematics.c:107` 的单位 bug 映射。
+- **PC 烧录**：ST-Link + STM32CubeProgrammer（推荐）或板载 CH340 + `stm32flash`（BOOT0=1）；Keil 工程 `Project/xproject.uvprojx`；详见 `firmware/openctr_b20/README.md`。
+- **待硬件**：实车看门狗验证、舵机 gain/offset 标定、串口 100Hz 无错帧。
 
 ### S7：hardware_interface 插件（约 2~3 天）
-- 写 `SystemInterface` 替换 `GazeboSystem`：下发电esar速度×2 + 舵角（映射到同一舵机），回收轮速/陀螺；
+- 写 `SystemInterface` 替换 `GazeboSystem`：下发电机轮速×2 + 舵角（映射到同一舵机），回收轮速/陀螺；
 - 关键设计（已在阶段一预演）：**上层 R5 控制器一行不改**，两个 steer 指令在 HW 层合并映射到单舵机——这就是 ros2_control 分层的兑现；
 - **完成判据**：实车跑 drive_test.py，直行/转弯方向与仿真一致。
 
 ### S8：实机标定三件套（约 1 天）
 - 轮径实测（65 vs 图纸 49 悬案，直接决定里程计尺度）；编码器每转计数验证（390 vs ×4=1560）；转向零位/左右限位标定（β-舵角映射表）；
-- **完成判据**：推车 5m，轮式里程计读数误差 < 3%；满舵实测转弯半径 ≈ 0.55m。
+- **完成判据**：推车 5m，轮式里程计读数误差 < 3%；满舵实测转弯半径 ≈ 0.35~0.55m（以实测为准）。
 
 ### 安全线（贯穿 S6~S10，不是可选步骤）
 - 看门狗：串口断流 → 下位机自主停车（不依赖上位机存活）；

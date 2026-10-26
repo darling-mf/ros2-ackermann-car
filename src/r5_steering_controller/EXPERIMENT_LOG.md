@@ -293,3 +293,28 @@ ros2 run car_bringup path_tracker.py --tracker lqr --path line --offset 0.3 --q-
 | **破案 4** | 调试输出被 pipe+head 的缓冲假象吞掉——**排障时重定向到文件，不用管道**；pkill 模式匹配到自身命令行导致 shell 自杀两次——kill 与含匹配串的命令必须分行 |
 | **数据** | 坏帧注入 3%（千分之30）→ 桥统计坏帧 8/好帧 238/重同步 0，好帧率与注入率吻合；速度闭环 0.2/0.4 精确收敛；看门狗断流 0.5s 发零速（虚拟端 3421 次零速指令计数佐证） |
 | **教训** | ① 协议代码必须"pack/parse 回环 + 官方示例帧"双自检；② 安全机制（看门狗）要有**对端证据日志**才算验证；③ 调试输出永远重定向文件 |
+
+---
+
+# Part 5：S4 倒车 + S6 固件模块（Round 15，2026-10-26）
+
+## Round 15.1：Nav2 参数从未生效（最隐蔽的一处）
+
+| 环节 | 内容 |
+|---|---|
+| **功能** | 给 Nav2 调倒车参数（reverse_penalty/MPPI）并验证正后方目标 |
+| **破案** | 读 `nav2.launch.py` 发现它只传了 `map/use_sim_time/slam`，**没传 `params_file`**——Nav2 一直在用默认参数，之前所有 YAML 调参全部无效。修复：launch 读取 YAML、注入 BT 路径、写临时 params_file 再传给 bringup |
+| **附带** | `wz_max: 1`（整数）导致 controller_server configure 报 "invalid type double" 并 abort；改 `1.0` |
+| **附带** | MPPI `CostCritic.consider_footprint: true` 但 costmap 只有 `robot_radius` → configure 时 SIGSEGV；给两个 costmap 加矩形 footprint（0.28×0.22m）后正常 |
+| **数据** | 目标 (-1.0,0)，终态 (-0.906,-0.251,yaw≈0.016)：后退 0.93m、航向不变 → 倒车成功 |
+| **教训** | "改了参数没效果"先确认参数文件真的被加载（`ros2 param get`）；类型错误/形状不一致会在 lifecycle configure 阶段以 abort 呈现，读日志要看到底哪一条 |
+
+## Round 15.2：S6 固件模块（主机可验证）
+
+| 环节 | 内容 |
+|---|---|
+| **功能** | 从厂家源码抽取协议/看门狗/阿克曼几何，写成无硬件依赖的 C 模块 |
+| **测试** | `firmware/openctr_b20/test/test_host.c`（gcc，无硬件）：官方示例帧逐字节、0x10 20 字节回环、坏帧重同步、看门狗 300ms 边界、β/内轮角/舵机指令/最小半径钳位 |
+| **数据** | 5/5 PASS；β=0.284 rad（vx=0.3,wz=0.6）、内轮 19.2°、最小半径钳位生效 |
+| **关键发现** | 厂家 `ax_kinematics.c:107` 把弧度又乘 0.01745（二次转换），右前轮角恒≈0.2°；我们的实现改为正确的 `atan(H/(R−W/2))` + 可标定舵机 gain/offset，待实车标定 |
+| **教训** | 把“硬件相关”和“纯逻辑”切开，纯逻辑就能在 PC 上 TDD；固件质量不再依赖“烧进去看” |

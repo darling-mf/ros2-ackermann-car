@@ -13,8 +13,9 @@ FAST-LIO-SAM-QN / livox）已弃用，源码保留但不参与构建。
 | 跟踪算法（Pure Pursuit / Stanley / LQR + 增益调度） | 完成 | `path_tracker.py` 六组对比数据 |
 | 传感器融合（/odom + /imu 互补滤波） | 完成 | 圆周实验：融合 11.7° vs 轮式 85° |
 | 串口桥（X-Protocol 与 ROS 2，含虚拟 STM32） | 完成 | 七项测试（3% 坏帧注入、看门狗证据） |
-| Nav2 调优 / 倒车分流（S4） | 待做 | `plan_inspector.py` 已备好 |
-| STM32 固件 / HW 插件 / 标定 / 实机（S6~S9） | 待做 | 见 `src/car_bringup/ROADMAP_TO_REAL.md` |
+| Nav2 倒车分流（S4） | 完成 | 正后方目标实测：后退 0.93m、航向不变 |
+| STM32 固件（S6） | 模块完成 | `firmware/openctr_b20` 主机单测 5/5 通过；待实车 |
+| HW 插件 / 标定 / 实机（S7~S9） | 待做 | 见 `src/car_bringup/ROADMAP_TO_REAL.md` |
 
 ## 构建与运行
 
@@ -45,12 +46,16 @@ ros2 run r5_serial serial_bridge --port /dev/pts/N
 ## 仓库结构（自研部分）
 
 ```
-src/
-├── car_bringup/             # 启动、配置、全部实验脚本、路线图
-├── car_description/         # URDF + Gazebo 世界（R5 实车尺寸/限位）
-├── r5_steering_controller/  # 自研 ros2_control 阿克曼插件（限幅三件套）
-├── r5_serial/               # X-Protocol 串口桥 + 虚拟 STM32
-└── car_navigation/          # Nav2 自定义行为树（S4 待接）
+├── docs/READING_GUIDE.md      # 阅读顺序 + S4/S6 报告 + 雷达/轴距指南
+├── patches/                   # 上游 ros2_controllers 补丁
+├── firmware/openctr_b20/      # S6 固件模块（纯 C，主机单测通过）
+├── hardware/openctr_b20/      # 厂家固件源码（本地，不提交）
+└── src/
+    ├── car_bringup/           # 启动、配置、全部实验脚本、路线图
+    ├── car_description/       # URDF + Gazebo 世界（R5 实车尺寸/限位）
+    ├── r5_steering_controller/# 自研 ros2_control 阿克曼插件（限幅三件套）
+    ├── r5_serial/             # X-Protocol 串口桥 + 虚拟 STM32
+    └── car_navigation/        # Nav2 阿克曼行为树（无 Spin，大 BackUp）
 ```
 
 ## 外部依赖与补丁
@@ -64,6 +69,7 @@ src/
 
 | 文档 | 内容 |
 |---|---|
+| `docs/READING_GUIDE.md` | 阅读顺序 + S4/S6 报告 + 2D 雷达选型 + 轴距实测 |
 | `PROJECT_MAP.md` | 文件树全景 + 进度总账 + 命令速查 |
 | `src/car_bringup/CONTROL_DEBUG_NOTES.md` | S0 八大 bug 的根因切割与方法论 |
 | `src/car_bringup/ROADMAP_TO_REAL.md` | S0~S9 实机路线图与完成判据 |

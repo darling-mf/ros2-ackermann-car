@@ -74,6 +74,17 @@ ackermann_steering_controller  ackermann_steering_controller/AckermannSteeringCo
 
 ---
 
+## 2.5 自动导航（S4）
+
+```bash
+ros2 launch car_bringup nav2.launch.py            # 带 RViz
+ros2 launch car_bringup nav2.launch.py rviz:=false
+```
+
+`nav2.launch.py` 会把 `config/nav2_params.yaml` 真正传给 Nav2，并注入
+`car_navigation/behavior_trees/akm_navigate_*.xml`（无 Spin、BackUp 0.6m）。
+首次启动后需在 RViz 用 2D Pose Estimate 设初始位姿（或发 `/initialpose`）。
+
 ## 3. 手动控制
 
 控制器订阅标准的 `geometry_msgs/msg/Twist` 话题 `/cmd_vel`

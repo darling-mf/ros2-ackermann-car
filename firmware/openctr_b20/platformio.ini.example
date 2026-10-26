@@ -1,0 +1,16 @@
+; 仅主机测试环境（无需硬件）：pio run -e native_test
+[env:native_test]
+platform = native
+build_flags = -std=c99 -Wall -Wextra -I src
+test_filter = test_host
+src_dir = src
+test_dir = test
+
+; 固件目标示例（需按厂家 SPL/FreeRTOS/链接脚本调整，未验证）
+; [env:openctr_b20]
+; platform = ststm32
+; board = genericSTM32F103RC
+; framework = stm32cube
+; upload_protocol = stlink
+; build_flags = -DSTM32F10X_HD -DUSE_STDPERIPH_DRIVER
+; build_src_filter = +<*> +<../../hardware/openctr_b20/vendor_src/OpenCTR_B20V11_AKM_V1.00.241015/Driver/> ...
