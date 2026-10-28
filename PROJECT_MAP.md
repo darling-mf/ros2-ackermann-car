@@ -20,6 +20,7 @@
 ~/car_ws/                              # colcon 工作区根
 ├── README.md                        # 项目入口（状态/命令/文档索引）
 ├── PROJECT_MAP.md                   # ← 本文件（总账）
+├── docs/SIM_TODO.md                 # 【清单】仿真验证结果与剩余项
 ├── docs/PROJECT_STATE.md            # 【记忆】状态/数据/缺口/命令
 ├── docs/ENGINEERING_HANDOVER.md     # 【交接】全栈架构/接口/改动指南/学习路线
 ├── docs/READING_GUIDE.md            # 文件定位 + S4/S6 报告 + 雷达/轴距

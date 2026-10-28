@@ -77,6 +77,7 @@ ros2 run r5_serial serial_bridge --port /dev/pts/N
 
 | 文档 | 内容 |
 |---|---|
+| `docs/SIM_TODO.md` | 仿真验证清单与剩余项（倒车/动态障碍/建图/融合） |
 | `docs/PROJECT_STATE.md` | **压缩记忆**：当前状态/已验证数据/缺口/命令 |
 | `docs/ENGINEERING_HANDOVER.md` | **全栈架构交接**：分层/接口/运动控制/规划/雷达/学习路线 |
 | `docs/READING_GUIDE.md` | 文件定位 + 阅读顺序 + S4/S6 报告 + 雷达选型 + 轴距实测 |
