@@ -20,6 +20,7 @@
 ~/car_ws/                              # colcon 工作区根
 ├── README.md                        # 项目入口（状态/命令/文档索引）
 ├── PROJECT_MAP.md                   # ← 本文件（总账）
+├── docs/PROJECT_STATE.md            # 【记忆】状态/数据/缺口/命令
 ├── docs/ENGINEERING_HANDOVER.md     # 【交接】全栈架构/接口/改动指南/学习路线
 ├── docs/READING_GUIDE.md            # 文件定位 + S4/S6 报告 + 雷达/轴距
 ├── patches/                         # ros2_controllers 补丁（上游修改归档）
@@ -163,6 +164,8 @@ source install/setup.bash && ros2 launch car_bringup gazebo.launch.py [gui:=fals
 # 一键仿真 + Nav2 + RViz（AMCL 自动初始位姿；Nav2 只能一套）
 ros2 launch car_bringup sim_nav2.launch.py
 ros2 run car_bringup cleanup_sim.sh      # 清理重复 Nav2/仿真残留
+ros2 launch car_bringup mapping.launch.py # 2D 建图（与 Nav2 互斥）
+ros2 launch car_bringup fusion.launch.py  # 融合实验（不启动 Nav2）
 ros2 control list_controllers        # 应见 joint_state_broadcaster + r5_steering_controller 均 active
 
 # 自检三连

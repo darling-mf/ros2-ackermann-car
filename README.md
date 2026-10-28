@@ -33,6 +33,10 @@ ros2 launch car_bringup gazebo.launch.py gui:=false rviz:=false
 # 一键仿真 + Nav2 + RViz（默认；Nav2 只能起一套）
 ros2 launch car_bringup sim_nav2.launch.py
 ros2 run car_bringup cleanup_sim.sh          # 出现重复 Nav2/goal 无响应时先清理
+
+# 2D 建图（与 Nav2 互斥）/ 传感器融合实验
+ros2 launch car_bringup mapping.launch.py
+ros2 launch car_bringup fusion.launch.py
 ros2 control list_controllers        # joint_state_broadcaster + r5_steering_controller
 
 # 控制自检 / 验收 / 跟踪对比
@@ -73,6 +77,7 @@ ros2 run r5_serial serial_bridge --port /dev/pts/N
 
 | 文档 | 内容 |
 |---|---|
+| `docs/PROJECT_STATE.md` | **压缩记忆**：当前状态/已验证数据/缺口/命令 |
 | `docs/ENGINEERING_HANDOVER.md` | **全栈架构交接**：分层/接口/运动控制/规划/雷达/学习路线 |
 | `docs/READING_GUIDE.md` | 文件定位 + 阅读顺序 + S4/S6 报告 + 雷达选型 + 轴距实测 |
 | `PROJECT_MAP.md` | 文件树全景 + 进度总账 + 命令速查 |
