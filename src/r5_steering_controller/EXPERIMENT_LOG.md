@@ -328,3 +328,13 @@ ros2 run car_bringup path_tracker.py --tracker lqr --path line --offset 0.3 --q-
 | 修复 | 新增 `cleanup_sim.sh`（按进程名清理 launch/容器/Gazebo/RViz）+ 单命令 `sim_nav2.launch.py`；AMCL 用原生 `set_initial_pose` 自动初始化（不再依赖外部节点） |
 | 验证 | 清理后单套 server 全 active；节点唯一性各=1；前方目标 (0.8,0) `SUCCEEDED`，车到 x≈0.68；倒车目标能倒车但 MPPI 在终点附近跟踪慢（Humble 已知局限） |
 | 教训 | ① “导航不了”先查进程/节点重复，再查算法；② launch 崩溃后容器可能被 respawn，必须连 launch 进程一起杀；③ 实验前固定“清理→单套启动→唯一性检查”三步 |
+
+## Round 17：倒车参数迭代（2026-10-28）
+
+| 环节 | 内容 |
+|---|---|
+| 修改 | `reverse_penalty 0.8→0.5`、`PreferForwardCritic 0.5→0.2`、`vx_min -0.3→-0.4`、`xy_goal_tolerance 0.15→0.20` |
+| 预测 | 更愿意倒车、倒得更快、终点容差减少边界振荡 |
+| 数据 | −0.8m **5s SUCCEEDED**（终态 −0.672,−0.072, yaw 0.026）；−1.6m **6s SUCCEEDED**（−1.440,−0.368, yaw 0.194）；−2.4m 55s 超时（−3.05,−0.996, yaw 0.343） |
+| 结论 | **2/3 达标**（<40s、yaw<0.2），满足截图判据；长距离 >2m 仍不稳，需 BT 分段/换控制器 |
+| 教训 | 倒车不是“能不能”，是“距离-容差-前向偏好”的联合调参；先用短段验证，再处理长距离 |

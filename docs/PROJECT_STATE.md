@@ -13,7 +13,7 @@
 |---|---|---|
 | 底盘执行 + R5 控制器 | ✅ | acceptance 三项 PASS；38 上游单测 |
 | Nav2 前向导航 | ✅ | 目标 (0.8,0) `SUCCEEDED`，车到 x≈0.68 |
-| Nav2 倒车 | 🟡 | −0.8m 70s 超时但到位(y=0.15)；−1.6m 47s **SUCCEEDED**；−2.4m **ABORTED** 过冲 0.45m |
+| Nav2 倒车 | ✅ 2/3 | 调参后：−0.8m **5s SUCCEEDED**(yaw 0.026)；−1.6m **6s SUCCEEDED**(yaw 0.194)；−2.4m 55s 超时（长距离需 BT 分段） |
 | 2D 建图 | ✅ | `mapping.launch.py`；`/map` 350×219@0.05；`map_saver_cli` 保存成功 |
 | 传感器融合 | 🟡 | `fusion.launch.py` → `/odometry/fused` 正常；**未替换默认 `/odom`** |
 | 串口桥 + 虚拟 STM32 | ✅ | 七项测试（坏帧/看门狗） |
@@ -70,9 +70,9 @@ ros2 run car_bringup path_tracker.py --tracker lqr --path line --offset 0.3
 
 ## 已知缺口（按优先级）
 
-1. **倒车稳定性**：MPPI 倒车终点横向纠偏慢；长距离（>1.5m）易过冲。
-   先试 `reverse_penalty 0.5`、`PreferForwardCritic 0.2`、`vx_min -0.4`；
-   仍不行用 BT 分段（每段 ≤0.6m）或换 RPP/TEB。
+1. **倒车长距离**：≤1.6m 已稳定（2/3 标准达成）；>2m 仍会超时/过冲，
+   用 BT 分段（每段 ≤0.6m）或换 RPP/TEB。当前参数：
+   `reverse_penalty 0.5 / PreferForward 0.2 / vx_min -0.4 / 到点 0.20m`。
 2. **融合未接入默认导航**：需让控制器停止发 `/odom`+TF，融合节点成为唯一
    odom 源；或换 `robot_localization`。当前只是实验节点。
 3. **建图未进主流程**：`mapping.launch.py` 已可跑、可保存；Nav2 用保存后的地图。

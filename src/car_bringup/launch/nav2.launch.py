@@ -36,8 +36,12 @@ def generate_launch_description():
     params_file = merged.name
 
     rviz_enabled = LaunchConfiguration('rviz')
+    map_yaml = LaunchConfiguration('map')
     declare_rviz = DeclareLaunchArgument(
         'rviz', default_value='true', description='Start RViz2')
+    declare_map = DeclareLaunchArgument(
+        'map', default_value=map_yaml_file,
+        description='地图 yaml 路径（建图保存后可换）')
 
     nav2_bringup = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
@@ -45,7 +49,7 @@ def generate_launch_description():
                          'launch', 'bringup_launch.py')
         ]),
         launch_arguments={
-            'map': map_yaml_file,
+            'map': map_yaml,
             'use_sim_time': 'true',
             'slam': 'False',
             'params_file': params_file,
@@ -68,6 +72,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         declare_rviz,
+        declare_map,
         nav2_bringup,
         rviz_node,
     ])

@@ -145,7 +145,7 @@ controller_server:
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.15
+      xy_goal_tolerance: 0.20
       yaw_goal_tolerance: 0.30
 
       # ================= MPPI 控制器（阿克曼专属） =================
@@ -164,7 +164,7 @@ controller_server:
 
       # 速度限制（与你的 velocity_smoother 保持一致）
       vx_max: 1.0
-      vx_min: -0.3                 # 倒车限速（-1 m/s 室内太危险）
+      vx_min: -0.4                 # 倒车限速（迭代 -0.3→-0.4）
       vy_max: 0.0                     # 阿克曼不能横移
       wz_max: 1.0                   # 最大角速度
 
@@ -214,7 +214,7 @@ controller_server:
       # 行为偏好类约束
       PreferForwardCritic:
         enabled: true
-        cost_weight: 0.5              # 权重高则不倒车
+        cost_weight: 0.2              # 权重高则不倒车（迭代 0.5→0.2）
         threshold_to_consider: 0.5
 
 local_costmap:
@@ -324,7 +324,7 @@ planner_server:
       tolerance: 0.25
       allow_unknown: true
       max_iterations: 1000000
-      reverse_penalty: 0.8          # 允许 Reeds-Shepp 倒车段（原 2.0 太贵）
+      reverse_penalty: 0.5          # 允许 Reeds-Shepp 倒车段（迭代 0.8→0.5）
       change_penalty: 0.0
       non_straight_penalty: 1.2
       cost_penalty: 2.0
@@ -388,7 +388,7 @@ velocity_smoother:
     scale_velocities: False
     feedback: "OPEN_LOOP"
     max_velocity: [1.0, 0.0, 1.5]
-    min_velocity: [-0.3, 0.0, -1.5]
+    min_velocity: [-0.4, 0.0, -1.5]
     max_accel: [2.5, 0.0, 3.2]
     max_decel: [-2.5, 0.0, -3.2]
     odom_topic: "odom"
