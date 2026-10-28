@@ -34,7 +34,11 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(os.path.join(
             get_package_share_directory('slam_toolbox'), 'launch',
             'online_async_launch.py')),
-        launch_arguments={'use_sim_time': 'true'}.items(),
+        launch_arguments={
+            'use_sim_time': 'true',
+            'slam_params_file': os.path.join(
+                pkg, 'config', 'slam_toolbox.yaml'),
+        }.items(),
     )
 
     rviz_config = os.path.join(

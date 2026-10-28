@@ -50,6 +50,12 @@ def generate_launch_description():
         value=model_path + ':' + os.environ.get('GAZEBO_MODEL_PATH', '')
     )
 
+    # 禁止 Gazebo 联网拉取模型库：代理不可用时 gzclient 会卡 134s/
+    # 报 "Unable to connect to model database"。世界/模型都是本地的。
+    set_no_model_database = SetEnvironmentVariable(
+        name='GAZEBO_MODEL_DATABASE_URI', value=''
+    )
+
     # 1. 启动 Gazebo
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
@@ -122,6 +128,7 @@ def generate_launch_description():
         declare_gui,
         declare_rviz,
         set_gazebo_model_path,
+        set_no_model_database,
         gazebo,
         robot_state_publisher,
         spawn_entity,

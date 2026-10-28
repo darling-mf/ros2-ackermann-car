@@ -94,3 +94,30 @@ ros2 launch car_bringup nav2.launch.py map:=$HOME/car_ws/src/car_bringup/maps/ne
   属于我清理时判断过度；活动地图不受影响。若需旧数据只能重新建图/录包。
 - 实验前后建议：`ros2 run car_bringup cleanup_sim.sh` → `ros2 launch ...`，
   再用 `gz stats` 确认 RTF；RViz/VSCode 也会吃 CPU。
+
+## 9. 建图正确用法 / 本次“建不了图”复盘
+
+错误用法（你截图里的）：
+```bash
+# ❌ 不要在 ~/car_ws 直接这样跑：nav2_params.yaml 不在当前目录，
+#    日志已提示 Parameter file path is not a file，slam 实际用了默认参数
+ros2 launch slam_toolbox online_async_launch.py slam_params_file:=nav2_params.yaml
+```
+正确用法：
+```bash
+ros2 run car_bringup cleanup_sim.sh
+ros2 launch car_bringup mapping.launch.py          # Gazebo + slam + RViz
+# 或先起 Gazebo，再单独起 slam（用 R5 参数）：
+ros2 launch car_bringup gazebo.launch.py
+ros2 launch slam_toolbox online_async_launch.py \
+  slam_params_file:=$HOME/car_ws/src/car_bringup/config/slam_toolbox.yaml
+```
+已修：
+- `mapping.launch.py` 使用 `config/slam_toolbox.yaml`（激光 0.1–10m，消除
+  “min 0/max 25 超出雷达能力”的警告）；
+- `gazebo.launch.py` 设置 `GAZEBO_MODEL_DATABASE_URI=""`，避免代理不可用时
+  gzclient 卡 134s（日志 `libcurl ... 192.168.5.100:7890`）；
+- 建图实测：`/map` 269×241@0.05，`Registering sensor` 正常。
+
+RViz `context mismatch in svga surface destroy` 是 VMware/OpenGL 驱动告警；
+若 RViz 崩溃，用 `rviz:=false` 先建图，再单独开 RViz；不影响 slam_toolbox。
