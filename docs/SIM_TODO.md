@@ -80,3 +80,17 @@ ros2 launch car_bringup nav2.launch.py map:=$HOME/car_ws/src/car_bringup/maps/ne
 3. 融合 odom 接入（按 §5，独立 launch 验证后再默认）。
 4. 1 m/s 在更大场地做直线/弯道压测（当前室内 + RTF 限制）。
 5. 实车：S6 固件烧录 → S8 标定 → S7 HW 插件 → S9 集成。
+
+## 8. 环境健康 / RTF / 地图（2026-10-28 复查）
+
+- **Gazebo 单独 RTF = 0.99**；**单套 Nav2 RTF = 0.99**（`gz stats -d 2` 实测）。
+- 之前 RTF 0.4 的原因：残留的 `mapping.launch` + `slam_toolbox` + `sensor_fusion`
+  + 多套 Nav2 同时运行；`cleanup_sim.sh` 原先只清 nav2/gazebo，**已补上
+  mapping/fusion/slam_toolbox/sensor_fusion**。
+- **地图没有丢**：活动地图在
+  `src/car_bringup/maps/my_room_map.pgm|yaml`（376×222，origin −10.3/−6.46），
+  `map_server` 实际加载路径为 `install/car_bringup/share/car_bringup/maps/...`。
+  被删除的是早期目录 `my_final_map/`（446M）与 `my_mapping_bag/`（521M），
+  属于我清理时判断过度；活动地图不受影响。若需旧数据只能重新建图/录包。
+- 实验前后建议：`ros2 run car_bringup cleanup_sim.sh` → `ros2 launch ...`，
+  再用 `gz stats` 确认 RTF；RViz/VSCode 也会吃 CPU。
