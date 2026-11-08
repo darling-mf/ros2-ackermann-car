@@ -98,7 +98,6 @@ Nav2 chain.
 │   └── car_navigation/            # Ackermann behavior trees
 ├── firmware/openctr_b20/          # portable STM32 C modules + host tests
 ├── patches/                       # upstream ros2_controllers patch
-├── scripts/                       # workspace helper scripts
 └── LICENSE
 ```
 
