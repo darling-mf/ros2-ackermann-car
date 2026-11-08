@@ -27,7 +27,7 @@ def generate_launch_description():
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(pkg, 'launch',
                                                   'gazebo.launch.py')),
-        launch_arguments={'gui': gui, 'rviz': rviz}.items(),
+        launch_arguments={'gui': gui, 'rviz': rviz, 'use_fusion': 'false'}.items(),
     )
     fusion = Node(
         package='car_bringup', executable='sensor_fusion.py',

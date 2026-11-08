@@ -23,6 +23,8 @@ import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
+from geometry_msgs.msg import TransformStamped
+from tf2_ros import TransformBroadcaster
 
 
 def wrap(a):
@@ -49,7 +51,11 @@ class SensorFusion(Node):
     def __init__(self):
         super().__init__('sensor_fusion')
         self.declare_parameter('alpha', 0.999)
+        self.declare_parameter('wheel_odom_topic', '/wheel/odom')
+        self.declare_parameter('publish_tf', True)
         self.alpha = self.get_parameter('alpha').get_parameter_value().double_value
+        wheel_topic = self.get_parameter('wheel_odom_topic').get_parameter_value().string_value
+        self.publish_tf = self.get_parameter('publish_tf').get_parameter_value().bool_value
 
         self.odom = None
         self.wz = 0.0
@@ -58,10 +64,12 @@ class SensorFusion(Node):
         self.pos_f = None
         self.yaw_g = None              # 纯陀螺对照
 
-        self.create_subscription(Odometry, '/odom', self._odom, 20)
+        self.create_subscription(Odometry, wheel_topic, self._odom, 20)
         self.create_subscription(Imu, '/imu', self._imu, 20)
         self.pub_fused = self.create_publisher(Odometry, '/odometry/fused', 10)
+        self.pub_odom = self.create_publisher(Odometry, '/odom', 10)
         self.pub_gyro = self.create_publisher(Odometry, '/odometry/gyro_only', 10)
+        self.tf_broadcaster = TransformBroadcaster(self)
 
     def _odom(self, m):
         self.odom = m
@@ -101,17 +109,29 @@ class SensorFusion(Node):
 
         fused = Odometry()
         fused.header.stamp = m.header.stamp
-        fused.header.frame_id = self.odom.header.frame_id
-        fused.child_frame_id = self.odom.child_frame_id
+        fused.header.frame_id = 'odom'
+        fused.child_frame_id = 'base_footprint'
         fused.pose.pose.position.x = x
         fused.pose.pose.position.y = y
         fused.pose.pose.orientation = yaw_to_quat(self.yaw_f)
         fused.twist = self.odom.twist
         self.pub_fused.publish(fused)
+        self.pub_odom.publish(fused)
+
+        if self.publish_tf:
+            tf = TransformStamped()
+            tf.header.stamp = m.header.stamp
+            tf.header.frame_id = 'odom'
+            tf.child_frame_id = 'base_footprint'
+            tf.transform.translation.x = x
+            tf.transform.translation.y = y
+            tf.transform.translation.z = 0.0
+            tf.transform.rotation = fused.pose.pose.orientation
+            self.tf_broadcaster.sendTransform(tf)
 
         gyro = Odometry()
         gyro.header = fused.header
-        gyro.child_frame_id = self.odom.child_frame_id
+        gyro.child_frame_id = 'base_footprint'
         gyro.pose = self.odom.pose
         gyro.pose.pose.orientation = yaw_to_quat(self.yaw_g)
         self.pub_gyro.publish(gyro)

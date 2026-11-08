@@ -27,6 +27,7 @@ def generate_launch_description():
 
     gui = LaunchConfiguration('gui')
     rviz_enabled = LaunchConfiguration('rviz')
+    use_fusion = LaunchConfiguration('use_fusion')
 
     # 解析 xacro
     doc = xacro.process_file(xacro_file)
@@ -43,6 +44,9 @@ def generate_launch_description():
     declare_rviz = DeclareLaunchArgument(
         'rviz', default_value='true',
         description='Start RViz2')
+    declare_use_fusion = DeclareLaunchArgument(
+        'use_fusion', default_value='true',
+        description='Start sensor fusion (default odom source)')
 
     # 清理并设置 Gazebo 模型路径
     set_gazebo_model_path = SetEnvironmentVariable(
@@ -114,7 +118,21 @@ def generate_launch_description():
         )
     )
 
-    # 7. RViz2（可关：rviz:=false）
+    # 7. 传感器融合：控制器改发 /wheel/odom 且不发 TF；
+    #    本节点发布 /odom 与唯一 odom→base_footprint。
+    fusion = Node(
+        package='car_bringup',
+        executable='sensor_fusion.py',
+        name='sensor_fusion',
+        output='screen',
+        parameters=[{'use_sim_time': True,
+                     'wheel_odom_topic': '/wheel/odom',
+                     'alpha': 0.999,
+                     'publish_tf': True}],
+        condition=IfCondition(use_fusion),
+    )
+
+    # 8. RViz2（可关：rviz:=false）
     rviz = Node(
         package='rviz2',
         executable='rviz2',
@@ -127,6 +145,7 @@ def generate_launch_description():
     return LaunchDescription([
         declare_gui,
         declare_rviz,
+        declare_use_fusion,
         set_gazebo_model_path,
         set_no_model_database,
         gazebo,
@@ -134,5 +153,6 @@ def generate_launch_description():
         spawn_entity,
         delay_load_jsb,
         delay_load_ackermann,
+        fusion,
         rviz,
     ])

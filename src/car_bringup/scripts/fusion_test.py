@@ -45,7 +45,7 @@ class FusionTest(Node):
         self.samples = []     # dict per truth sample
         self.gt_last = 0.0
         self.create_subscription(Odometry, '/ground_truth', self._gt, 20)
-        self.create_subscription(Odometry, '/odom', self._odom, 20)
+        self.create_subscription(Odometry, '/wheel/odom', self._odom, 20)
         self.create_subscription(Odometry, '/odometry/fused', self._fused, 20)
         self.create_subscription(Odometry, '/odometry/gyro_only',
                                  lambda m: self.__dict__.update(gyro_yaw=yaw_of(m.pose.pose.orientation)), 20)
@@ -162,7 +162,7 @@ def main():
               f'末端={math.degrees(e[-1]):+6.2f}°')
 
     print('===== 位置漂移 vs 真值（对齐后）=====')
-    for name, key in [('轮式里程计 /odom', 'xy_odom'),
+    for name, key in [('轮式里程计 /wheel/odom', 'xy_odom'),
                       ('融合 v2 /odometry/fused', 'xy_fused')]:
         dists = []
         for s in node.samples:

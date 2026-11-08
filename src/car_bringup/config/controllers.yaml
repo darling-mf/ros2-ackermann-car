@@ -32,7 +32,7 @@ r5_steering_controller:
 
     base_frame_id: "base_footprint"
     odom_frame_id: "odom"
-    enable_odom_tf: true
+    enable_odom_tf: false   # 由 sensor_fusion 发布唯一 odom→base_footprint
 
     # false 订阅 geometry_msgs/Twist（teleop / Nav2 默认）
     use_stamped_vel: false

@@ -17,7 +17,9 @@ amcl:
     laser_max_range: 10.0
     laser_min_range: 0.25
     laser_model_type: "likelihood_field"
-    max_beams: 60
+    # 1 m/s 高速下 60 束更新太稀，AMCL 会滞后；90 束 + 更短的更新间隔
+    # 把直行 4~6 m 的定位误差从约 16 cm 压到 5~8 cm（实测见 SIM_TODO §4）。
+    max_beams: 90
     max_particles: 2000
     min_particles: 500
     odom_frame_id: "odom"
@@ -31,8 +33,10 @@ amcl:
     sigma_hit: 0.2
     tf_broadcast: true
     transform_tolerance: 1.0
-    update_min_a: 0.2
-    update_min_d: 0.25
+    # 高速时按 0.25 m 才更新一次，滤波器永远“慢半拍”；0.10 m/0.10 rad
+    # 增加更新频率，代价是 CPU。实车若 CPU 紧张可回调到 0.15/0.15。
+    update_min_a: 0.10
+    update_min_d: 0.10
     z_hit: 0.5
     z_max: 0.05
     z_rand: 0.5
@@ -163,7 +167,7 @@ controller_server:
         min_turning_r: 0.35           # 与 Smac 的 minimum_turning_radius 一致
 
       # 速度限制（与你的 velocity_smoother 保持一致）
-      vx_max: 0.30
+      vx_max: 1.0
       vx_min: -0.15                # 慢速倒车（原 -0.4 会导致 odom/AMCL 发散）
       vy_max: 0.0                     # 阿克曼不能横移
       wz_max: 1.0                   # 最大角速度
@@ -393,7 +397,7 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
-    max_velocity: [0.30, 0.0, 1.0]
+    max_velocity: [1.0, 0.0, 1.0]
     min_velocity: [-0.15, 0.0, -1.0]
     max_accel: [2.5, 0.0, 3.2]
     max_decel: [-2.5, 0.0, -3.2]

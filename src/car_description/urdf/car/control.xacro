@@ -49,8 +49,8 @@
             <parameters>$(find car_bringup)/config/controllers.yaml</parameters>
             <ros>
                 <!-- 重映射一些官方控制器的话题（控制器改名为 r5_steering_controller 后同步改） -->
-                <remapping>/r5_steering_controller/tf_odometry:=/tf</remapping>
-                <remapping>/r5_steering_controller/odometry:=/odom</remapping>
+                <remapping>/r5_steering_controller/tf_odometry:=/tf_wheel</remapping>
+                <remapping>/r5_steering_controller/odometry:=/wheel/odom</remapping>
                 <!-- controllers.yaml 中 use_stamped_vel 为 false 时控制器订阅
                      ~/reference_unstamped；这里把它映射成标准的 /cmd_vel -->
                 <!-- 注意：URDF 注释里不要出现 ASCII 的“冒号+空格”，
