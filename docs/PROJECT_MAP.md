@@ -7,9 +7,9 @@
 
 ## 一、一句话现状
 
-**仿真主链闭环**：底盘执行 / 前向导航 / 2D 建图 / 串口协议栈已验证；
-倒车短距可用（长距不稳）、动态障碍未绕行、窄通道未压测、融合未接管默认
-odom。**S6 固件模块已完成主机单测**，剩下实车联调；再往后 S7
+**仿真主链闭环**：底盘执行 / 前向导航 / 1 m/s / 2D 建图 / 融合默认 odom /
+串口协议栈已验证；倒车短距可用（长距不稳）、动态障碍近墙终点未闭环、
+窄通道未压测。**S6 固件模块已完成主机单测**，剩下实车联调；再往后 S7
 （hardware_interface）→ S8（标定）→ S9（实机）。详见 `SIM_TODO.md`。
 
 ---
@@ -27,7 +27,9 @@ odom。**S6 固件模块已完成主机单测**，剩下实车联调；再往后
 │   ├── PROJECT_STATE.md             # 【记忆】状态/数据/缺口/命令
 │   ├── ENGINEERING_HANDOVER.md      # 【交接】全栈架构/接口/改动指南
 │   ├── READING_GUIDE.md             # 文件定位 + S4/S6 报告 + 雷达/轴距
-│   └── reports/NAV2_DEBUG_REPORT.md # Nav2/TF/costmap/RTF 排障报告
+│   └── reports/
+│       ├── NAV2_DEBUG_REPORT.md    # Nav2/TF/costmap/RTF 排障报告
+│       └── FIVE_ISSUES_SIM_REPORT.md # 五项问题：原因/方案/工程常见度
 ├── patches/                         # ros2_controllers 补丁（上游修改归档）
 ├── scripts/sync-to-pi.sh            # 虚拟机→树莓派同步脚本
 ├── firmware/openctr_b20/            # S6 固件模块（纯 C，主机单测通过）
@@ -149,9 +151,9 @@ odom。**S6 固件模块已完成主机单测**，剩下实车联调；再往后
 | S0 仿真执行链闭环（ros2_control+阿克曼控制器） | ✅ | 三项验收 PASS，38 上游单测全绿 |
 | S1 跟踪算法（PP/Stanley/LQR+增益调度+限幅） | ✅ | 六组对比数据 + Round 10 修正循环 |
 | S2 量化基建（p3d 真值/自检/验收/实验脚本） | ✅ | Round 1~13 实验日志 |
-| S3 传感器融合（互补滤波 v2） | 🟡 | 实验：融合 11.7° 最优；未接管默认 `/odom` |
+| S3 传感器融合（互补滤波 v2） | ✅ | 已接管默认 `/odom` + 唯一 TF；前向/1 m/s 回归通过；实车待标定 |
 | S5 串口桥+虚拟 STM32 | ✅ | 七项测试（含 3% 坏帧注入、看门狗证据） |
-| S4 Nav2 导航 | 🟡 | 前进 (2.0,0) SUCCEEDED/0 恢复；左房间 ABORTED；倒车短距可用、长距不稳 |
+| S4 Nav2 导航 | 🟡 | 前进 (2.0,0) SUCCEEDED/0 恢复；1 m/s (4.0/6.0) SUCCEEDED；左房间 ABORTED；动态障碍近墙未闭环 |
 | **S6 STM32 固件改造** | 🟡 模块完成 | `firmware/openctr_b20` 的协议/看门狗/阿克曼模块 + 主机单测；实车集成待硬件 |
 | **S7 hardware_interface 插件** | ⬜ | 实车跑 drive_test.py，方向与仿真一致；上层零改动 |
 | **S8 标定三件套** | ⬜ | 轮径/轴距/轮距实测裁决（固件 0.146/0.160 vs 手册 0.112/0.164 之争）、编码器 1560 验证、满舵半径≈0.35~0.55 实测 |
@@ -171,7 +173,7 @@ source install/setup.bash && ros2 launch car_bringup gazebo.launch.py [gui:=fals
 ros2 launch car_bringup sim_nav2.launch.py
 ros2 run car_bringup cleanup_sim.sh      # 清理重复 Nav2/仿真残留
 ros2 launch car_bringup mapping.launch.py # 2D 建图（与 Nav2 互斥）
-ros2 launch car_bringup fusion.launch.py  # 融合实验（不启动 Nav2）
+ros2 launch car_bringup fusion.launch.py  # 独立融合验证（默认链路已含在 gazebo/sim_nav2）
 ros2 control list_controllers        # 应见 joint_state_broadcaster + r5_steering_controller 均 active
 
 # 自检三连
@@ -179,7 +181,7 @@ ros2 run car_bringup drive_test.py --vx 0.1 --wz 0.3
 ros2 run car_bringup acceptance_test.py [--vx 1.0]
 ros2 run car_bringup path_tracker.py --tracker lqr --path line --offset 0.3
 
-# 融合实验（需先 ros2 run car_bringup sensor_fusion.py）
+# 融合量化（先启动 sim_nav2/gazebo 默认融合，或 fusion.launch.py）
 ros2 run car_bringup fusion_test.py --loops 3
 
 # 串口链（无硬件联调）

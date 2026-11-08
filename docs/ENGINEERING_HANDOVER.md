@@ -2,22 +2,22 @@
 
 > 面向：第一次接手本项目的新人 / 未来的自己。
 > 目标：**从上到下看懂每一层、知道每层核心文件与接口、明确改什么该动哪里**。
-> 日期：2026-10-26。配套文档见 §12。
+> 日期：2026-10-26（状态更新 2026-11-08）。配套文档见 §12。
 > 本文只讲“架构与改动方法”；具体 bug 复盘见 `src/r5_steering_controller/EXPERIMENT_LOG.md`。
 
 ---
 
 ## 0. 先回答：仿真层面做完了吗？
 
-**主链路已经闭环可用**（控制 / 定位 / 全局规划 / 局部控制 / 倒车 / 串口虚拟联调
-全部有实测），但作为“工程级交付”大约 **80%**，还差三块——它们不阻塞你现在学习，
-但要知道边界：
+**主链路已经闭环可用**（控制 / 定位 / 融合默认 odom / 全局规划 / 局部控制 /
+1 m/s 前向 / 倒车 / 串口虚拟联调全部有实测），但作为“工程级交付”还差
+压力测试与实车替换——它们不阻塞你现在学习，但要知道边界：
 
 | 能力 | 状态 | 证据 | 缺口 |
 |---|---|---|---|
 | 底盘执行（ros2_control + R5 控制器） | ✅ | 三项验收 PASS；38 上游单测 | 实车硬件接口（S7） |
 | 跟踪算法（PP/Stanley/LQR） | ✅ | 六组对比 + 增益调度 | 未接入 Nav2 主链路（是实验台） |
-| 状态估计（AMCL + 融合实验） | 🟡 | AMCL 导航可用；融合 11.7° | **融合节点未接入默认启动**，`/odom` 仍是轮式 |
+| 状态估计（AMCL + 融合） | ✅ | 融合默认 odom；1 m/s 误差 16→7.7cm | 实车轮径/IMU 标定后复测 |
 | 全局规划（Smac Hybrid + Reeds-Shepp） | ✅ | 正后方目标生成倒车段 | 窄通道/动态障碍未压测 |
 | 局部控制（MPPI Ackermann） | ✅ | 倒车 0.93m 到达、航向不变 | Humble MPPI 对长倒车段跟踪一般 |
 | 行为树（无 Spin、大 BackUp） | ✅ | `akm_navigate_*.xml` 已接入 | 复杂恢复策略未做 |
@@ -27,7 +27,7 @@
 | 实车（S7/S8/S9） | ⬜ | — | 需硬件 |
 
 **一句话**：**仿真作为一个“2D 雷达阿克曼导航实验台”已经完成**；
-作为一个可交付产品，还差“融合默认接入 + 压力测试 + 真实硬件替换”。
+作为一个可交付产品，还差“窄通道/动态障碍压力测试 + 真实硬件替换”。
 
 ---
 
@@ -51,14 +51,14 @@
 │    核心：nav2_params.yaml 的 velocity_smoother；r5 控制器 timeout      │
 │    接口：/cmd_vel (Twist)                                             │
 ├──────────────────────────────────────────────────────────────────────┤
-│ L1 状态估计层   AMCL(map→odom) + 轮式/IMU 融合实验 + p3d 真值          │
+│ L1 状态估计层   AMCL(map→odom) + 轮式/IMU 融合（默认 odom）+ p3d 真值   │
 │    核心：nav2_params.yaml 的 amcl；scripts/sensor_fusion.py            │
 │    接口：/scan、/imu、/odom、TF(map→odom→base_footprint)              │
 ├──────────────────────────────────────────────────────────────────────┤
 │ L0 底盘执行层   ros2_control + R5 阿克曼控制器                         │
 │    核心：src/r5_steering_controller/src/r5_steering_controller.cpp     │
 │    配置：src/car_bringup/config/controllers.yaml                      │
-│    接口：/cmd_vel → 关节指令；关节状态 → /odom + TF                    │
+│    接口：/cmd_vel → 关节指令；关节状态 → /wheel/odom（TF 由融合发）     │
 ├──────────────────────────────────────────────────────────────────────┤
 │ L-1 仿真/硬件边界 Gazebo Classic + gazebo_ros2_control（现在）         │
 │    核心：src/car_description/urdf/car/control.xacro（总接线板）        │
@@ -152,16 +152,17 @@ Action/TF 通信。改代码时先定位层，再找核心文件，避免在错�
 - **AMCL**：`nav2_params.yaml` 的 `amcl:`；输入 `/scan` + `/odom` + map，
   输出 `map→odom` TF。核心参数：粒子数、`update_min_d/a`、`max_beams`、
   `laser_max_range`、`likelihood_field`。
-- **轮式里程计**：由 L0 控制器内部 FK 产生 `/odom` + `odom→base_footprint`。
-  **不是**传感器融合结果（融合节点默认没启动）。
-- **融合实验**：`src/car_bringup/scripts/sensor_fusion.py` +
-  `/odometry/fused`；`fusion_test.py` 量化。**尚未接入默认 launch**——
-  这是仿真层最大的缺口之一。
+- **轮式里程计**：由 L0 控制器内部 FK 产生 `/wheel/odom`；控制器
+  `enable_odom_tf: false`，**不再广播** `odom→base_footprint`。
+- **融合（默认）**：`src/car_bringup/scripts/sensor_fusion.py` 订阅
+  `/wheel/odom` + `/imu`，发布 `/odom`、`/odometry/fused` 和唯一的
+  `odom→base_footprint`；`gazebo.launch.py` 默认启动。
 - **真值**：`control.xacro` 里的 p3d 插件 → `/ground_truth`（仅仿真，用于量化）。
 - **怎么改**：
-  - 要接融合：把 `sensor_fusion.py` 加入 launch，并把 `/odom` 的消费者
-    （Nav2/控制器）改为订阅 `/odometry/fused`；或直接换 `robot_localization` EKF；
-  - 定位漂移 → 先查 TF 时间戳/初始位姿/雷达量程，再调 AMCL 粒子参数。
+  - 融合已默认接入；若要换 `robot_localization` EKF，保持输出仍为
+    `/odom` + 唯一 TF，不要新增第二个 `odom→base_footprint`；
+  - 定位漂移 → 先查 TF 时间戳/初始位姿/雷达量程，再调 AMCL 粒子参数；
+    1 m/s 已把 `max_beams` 提到 90、`update_min_d/a` 降到 0.10。
 
 ### 2.6 L0 底盘执行层（ros2_control）
 

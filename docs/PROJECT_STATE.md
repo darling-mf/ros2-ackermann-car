@@ -4,8 +4,9 @@
 
 ## 一句话状态
 
-**仿真主链约 85%**：控制/前向导航/2D 建图/串口已验证；当前前进目标 (2.0,0) 成功、0 恢复；
-左房间目标仍 ABORTED（地图连通/长路径），动态障碍/窄通道/融合默认接入未完成；实车 S7/S8/S9 未开始。
+**仿真主链基本闭合**：控制/前向导航/2D 建图/串口已验证，融合 odom 已接管默认链路；
+1 m/s 前向目标成功、AMCL 误差约 5–8 cm。剩余：左房间长路径 ABORTED、
+动态障碍近墙终点会超时、窄通道未压测；实车 S7/S8/S9 未开始。
 
 ## 已验证（有数据）
 
@@ -13,9 +14,11 @@
 |---|---|---|
 | 底盘执行 + R5 控制器 | ✅ | acceptance 三项 PASS；38 上游单测 |
 | Nav2 前向导航 | ✅ | 目标 (2.0,0) `SUCCEEDED`、0 次恢复；AMCL 误差 3–5cm |
+| Nav2 1 m/s 高速 | ✅ | (4.0,0) 8.2s、(6.0,0) 4.7s 均 `SUCCEEDED`；AMCL 误差 16→5.4~7.7cm |
+| 动态障碍（终点离墙） | ✅ | 障碍 (4,0)、目标 (6,0)：12s `SUCCEEDED`、0 恢复；近墙 (8,0) 仍超时 |
 | Nav2 倒车 | 🟡 | 短距旧参数 2/3；当前慢倒车 −0.15 定位稳定，但左房间/长路径仍 ABORTED |
 | 2D 建图 | ✅ | `mapping.launch.py`；`/map` 376×222@0.05；`map_saver_cli` 保存成功 |
-| 传感器融合 | 🟡 | `fusion.launch.py` → `/odometry/fused` 正常；**未替换默认 `/odom`** |
+| 传感器融合 | ✅ | 默认链路：控制器 `/wheel/odom` 无 TF → 融合 `/odom` + 唯一 TF；前向回归 8s `SUCCEEDED` |
 | 环境/RTF | ✅ | Gazebo/单套 Nav2 RTF≈0.99；残留进程清理后恢复 |
 | 串口桥 + 虚拟 STM32 | ✅ | 七项测试（坏帧/看门狗） |
 | STM32 固件 | 🟡 | 主机单测 5/5；实车待联调 |
@@ -47,7 +50,7 @@ ros2 launch car_bringup nav2.launch.py rviz:=false
 ros2 launch car_bringup mapping.launch.py
 ros2 run nav2_map_server map_saver_cli -f ~/car_ws/src/car_bringup/maps/my_map
 
-# 融合实验（不启动 Nav2）
+# 融合默认链路已包含在 sim_nav2/gazebo 中；单独验证时：
 ros2 launch car_bringup fusion.launch.py
 ros2 run car_bringup fusion_test.py --loops 3
 
@@ -74,17 +77,18 @@ ros2 run car_bringup path_tracker.py --tracker lqr --path line --offset 0.3
 1. **倒车长距离**：≤1.6m 已稳定（2/3 标准达成）；>2m 仍会超时/过冲，
    用 BT 分段（每段 ≤0.6m）或换 RPP/TEB。当前参数：
    `reverse_penalty 0.5 / PreferForward 0.2 / vx_min -0.4 / 到点 0.20m`。
-2. **融合未接入默认导航**：需让控制器停止发 `/odom`+TF，融合节点成为唯一
-   odom 源；或换 `robot_localization`。当前只是实验节点。
+2. **动态障碍/近墙终点**：障碍 (4,0)/目标 (6,0) 已 12s 通过；但障碍 (6.5,0)/
+   目标 (8.0,0) 贴墙时 60s 未收敛（车到 7.63,0.39）；需要更远的终点、
+   分层恢复或 TEB 复测。
 3. **建图未进主流程**：`mapping.launch.py` 已可跑、可保存；Nav2 用保存后的地图。
 4. 实车：S6 固件烧录/看门狗/标定 → S7 `SystemInterface` → S8 标定 → S9 集成。
-5. 压力测试：窄通道、动态障碍、1 m/s 高速未做。
+5. 压力测试：窄通道、死胡同、动态障碍系统化场景未做。
 
 ## 下一步建议
 
-先做“倒车三连测”的参数迭代（用同一套 `sim_nav2`，目标 −0.8/−1.6/−2.4，
-记录成功/用时/终态），把 3 次成功率提到 ≥2/3、40s 内；再考虑融合接入。
-实车到货后直接按 `firmware/openctr_b20/README.md` 烧录 + 标定。
+仿真侧优先做“窄通道 + 动态障碍 + 近墙终点”的场景化回归，并把左房间改成
+Waypoint/BT 分段；这些都属于场景与行为树问题，不应再靠单一 MPPI 调参硬扛。
+实车到货后直接按 `firmware/openctr_b20/README.md` 烧录 + 标定，再复测融合 odom。
 
 ## 文档索引
 

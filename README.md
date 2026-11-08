@@ -19,9 +19,11 @@ AMCL 定位，再到 X-Protocol 串口桥与 STM32 固件模块。
 
 ## 当前状态
 
-- 仿真主链约 **85%**：控制、前向 Nav2、2D 建图、串口协议已验证；
-- 前进目标 `(2.0,0)` **SUCCEEDED、0 次恢复**；AMCL 误差 3–5 cm；
-- 短距倒车可用；**左房间长路径仍 ABORTED**；动态障碍/窄通道/融合默认接入未完成；
+- 控制、前向 Nav2、2D 建图、串口协议已验证；**融合 odom 已接管默认链路**；
+- 前进目标 `(2.0,0)` **SUCCEEDED、0 次恢复**；`1 m/s` 目标 `(4.0,0)`/`(6.0,0)`
+  均 **SUCCEEDED**，AMCL 误差约 5–8 cm；
+- 短距倒车可用；**左房间长路径仍 ABORTED**；动态障碍“终点不贴墙”场景 12s
+  通过，近墙终点会超时；窄通道未压测；
 - 实车 S7~S9（HW 插件/标定/集成）未开始。详见 [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md)。
 
 ## 架构总览
@@ -33,7 +35,7 @@ AMCL 定位，再到 X-Protocol 串口桥与 STM32 固件模块。
 整形层   velocity_smoother → /cmd_vel
 执行层   r5_steering_controller（50Hz，阿克曼 IK）
 边界层   Gazebo ros2_control / 实车 SystemInterface
-感知层   2D lidar → /scan → AMCL / costmap；/odom + /imu → 融合实验
+感知层   2D lidar → /scan → AMCL / costmap；/wheel/odom + /imu → 融合 → /odom + TF
 ```
 
 - **全局规划**：`SmacPlannerHybrid`，`REEDS_SHEPP`，最小转弯半径 0.35 m。
@@ -75,7 +77,7 @@ ros2 launch car_bringup sim_nav2.launch.py
 # 2D 建图（与 Nav2 互斥）
 ros2 launch car_bringup mapping.launch.py
 
-# 传感器融合实验（不启动 Nav2）
+# 独立融合验证（默认链路已包含融合；此入口不启动 Nav2）
 ros2 launch car_bringup fusion.launch.py
 
 # 清理残留（重复 Nav2/goal 无响应/RTF 异常时先用）
@@ -91,7 +93,7 @@ ros2 run car_bringup cleanup_sim.sh
 | 仅仿真 | `gazebo.launch.py` | Gazebo + 控制器，供遥控/调试 |
 | 导航 | `sim_nav2.launch.py` | 一条命令；AMCL 自动初始位姿 |
 | 建图 | `mapping.launch.py` | slam_toolbox；与 Nav2 互斥 |
-| 融合 | `fusion.launch.py` | `/odometry/fused` 实验；未接管默认 odom |
+| 融合 | `fusion.launch.py` | 独立启动融合；默认链路已由 `gazebo.launch.py` 接管 |
 | 跟踪实验 | `path_tracker.py --tracker lqr` | PP/Stanley/LQR 对比；与 Nav2 互斥 |
 
 > 同一时间只能有一套 Nav2/建图/跟踪控制源发布 `/cmd_vel`；
@@ -137,6 +139,7 @@ ros2 run car_bringup cleanup_sim.sh
 | [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md) | 文件树 + 命令速查 |
 | [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) | 当前状态、已验证数据、缺口 |
 | [docs/SIM_TODO.md](docs/SIM_TODO.md) | 仿真验证清单与 RTF/建图复盘 |
+| [docs/reports/FIVE_ISSUES_SIM_REPORT.md](docs/reports/FIVE_ISSUES_SIM_REPORT.md) | 五项问题：原因/修复/工程常见度 |
 | [src/r5_steering_controller/STAGE1_GUIDE.md](src/r5_steering_controller/STAGE1_GUIDE.md) | 控制器逐行/修改预测 |
 | [src/r5_steering_controller/EXPERIMENT_LOG.md](src/r5_steering_controller/EXPERIMENT_LOG.md) | 实验逻辑链（Round 1~17） |
 | [src/r5_serial/docs/S5_SERIAL_BRIDGE.md](src/r5_serial/docs/S5_SERIAL_BRIDGE.md) | 串口协议/真机 Checklist |
@@ -173,8 +176,8 @@ colcon test-result
 ## 已知边界
 
 - 3D 激光方案已弃用，源码保留在 `src/`，`COLCON_IGNORE` 不参与构建；
-- 融合节点未接管默认 `/odom`；
-- 动态障碍可停车但绕行未通过；窄通道/死胡同未压测；
+- 动态障碍在 1 m/s、终点离墙 ≥1m 时可绕行；目标贴墙时可能因终点不可达超时；
+- 窄通道/死胡同未压测；
 - 实车 S7~S9（HW 插件/标定/集成）未完成，需硬件；
 - 厂家固件无速度看门狗；`serial_bridge` 已做上位机兜底，S6 固件需补下位机看门狗。
 

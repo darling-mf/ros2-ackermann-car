@@ -34,7 +34,7 @@
 感知/定位支路：
 /scan (2D lidar) ─┬─ AMCL：map→odom
                   └─ costmap：局部/全局障碍
-/odom + /imu ── sensor_fusion.py：互补滤波（实验，未接管默认 odom）
+/wheel/odom + /imu ── sensor_fusion.py：互补滤波 → /odom + 唯一 TF（默认）
 Gazebo p3d ── /ground_truth：仅用于量化对比
 ```
 
@@ -67,9 +67,11 @@ Gazebo p3d ── /ground_truth：仅用于量化对比
 5. `velocity_smoother` 输出 `/cmd_vel`；
 6. `r5_steering_controller` 做阿克曼 IK，写关节命令；
 7. Gazebo/实车执行，关节状态回到控制器；
-8. 控制器发布 `/odom` + `odom→base_footprint`；
-9. AMCL 用 `/scan` + `/odom` 发布 `map→odom`；
-10. costmap 更新，回到 2/3 闭环。
+8. 控制器发布 `/wheel/odom`（`enable_odom_tf: false`，不发 TF）；
+9. `sensor_fusion.py` 用 `/wheel/odom` + `/imu` 发布 `/odom` 和唯一的
+   `odom→base_footprint`；
+10. AMCL 用 `/scan` + `/odom` 发布 `map→odom`；
+11. costmap 更新，回到 2/3 闭环。
 
 ## 5. 启动模式（互斥关系）
 
@@ -104,6 +106,8 @@ Gazebo p3d ── /ground_truth：仅用于量化对比
 
 - 3D 激光（FAST-LIO / FAST-LIO-SAM-QN / livox）已弃用，源码保留在
   `src/`，不参与构建；
-- 融合节点尚未接管默认 `/odom`；
-- 动态障碍可停车但未验证绕行；窄通道/死胡同未压测；
+- 融合已接管默认 `/odom`：控制器只发 `/wheel/odom`，融合节点是唯一
+  `odom→base_footprint` 广播者；1 m/s 前向导航已验证，实车需重新标定轮径/IMU；
+- 动态障碍在 1 m/s、终点离墙 ≥1m 时可 12s 绕行通过；目标贴近墙时可能因
+  终点不可达超时；窄通道/死胡同未压测；
 - 实车 S7~S9 未开始（需要硬件）。

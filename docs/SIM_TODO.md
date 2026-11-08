@@ -1,11 +1,13 @@
-# SIM_TODO —— 仿真验证清单与结果（2026-10-28）
+# SIM_TODO —— 仿真验证清单与结果（2026-11-08，含 10-28 历史）
 
-> **2026-10-29 最新结论（以此为准）**：当前导航参数为速度 0.3 m/s、
-> 慢倒车 −0.15 m/s、`reverse_penalty 2.0`、`min_turning_r 0.35`。
-> 前进目标 `(2.0,0)` **SUCCEEDED、0 次恢复**；左房间 `(-3.0,0.5)` 仍
-> **ABORTED**（15–16m 绕行/地图连通性）；倒车发散已用慢倒车控制住。
-> 下文 §2–§4 是 2026-10-28 的旧参数历史数据，保留用于对比，不要当成当前配置。
-> 详细证据见 [`reports/NAV2_DEBUG_REPORT.md`](reports/NAV2_DEBUG_REPORT.md)。
+> **2026-11-08 最新结论（以此为准）**：当前导航限速 **1.0 m/s**（平滑器同），
+> 融合 odom 已接管默认链路，AMCL 用 `max_beams 90 / update_min_d 0.10 /
+> update_min_a 0.10`。1 m/s 目标 `(4.0,0)` 与 `(6.0,0)` 均 **SUCCEEDED**，
+> AMCL 误差约 **16→5.4~7.7 cm**；左房间 `(-3.0,0.5)` 仍 **ABORTED**；
+> 动态障碍在“终点不贴墙”场景 12s 通过，近墙终点仍会超时。
+> 下文 §2–§4 含 2026-10-28 的旧参数历史数据，保留用于对比。
+> 五项问题的完整原因/方案见
+> [`reports/FIVE_ISSUES_SIM_REPORT.md`](reports/FIVE_ISSUES_SIM_REPORT.md)。
 
 > 状态图例：✅ 已验证；🟡 部分/有条件；⬜ 未做。
 > 所有 `ros2 launch/run` 命令均假设已 `source install/setup.bash`。
@@ -18,10 +20,10 @@
 | Nav2 前进导航 | ✅ | 目标 (0.8,0) SUCCEEDED，车到 x≈0.68 |
 | 倒车（短距） | 🟡 | 历史 2/3（旧参数）；当前慢倒车 −0.15 定位稳定，长路径/左房间仍 ABORTED |
 | **倒车后前进转弯** | ✅ | 见 §3：倒车后 +0.5 目标 8s SUCCEEDED，未卡死 |
-| 1 m/s | ⬜ | 当前 Nav2 限速 0.3；控制器直发 1.0 曾由 acceptance 验证，但未做高速导航压测 |
-| 动态障碍 | 🟡 | 旧参数下能检测停车、不能绕行；新参数下未复测 |
+| 1 m/s | ✅ | (4.0,0) 8.2s、(6.0,0) 4.7s 均 SUCCEEDED；AMCL 误差 16→5.4~7.7cm（§4） |
+| 动态障碍 | 🟡 | 终点不贴墙：障碍 (4,0)/目标 (6,0) 12s 通过；近墙目标 (8,0) 60s 超时（§4/§13） |
 | 窄通道/死胡同 | ⬜ | 未构造压测；动态障碍测试已暴露 MPPI 在障碍前易停死 |
-| 传感器融合 | 🟡 | 算法/launch/量化已完成，未接入默认 odom（见 §5） |
+| 传感器融合 | ✅ | 已接管默认 odom：`/wheel/odom` + `/imu` → `/odom` + 唯一 TF（§5） |
 | 2D 建图 | ✅ | mapping.launch.py；/map 350×219@0.05；map_saver 保存成功 |
 | 新图→Nav2 闭环 | 🟡 | map 参数已加；左房间失败指向地图连通性，需重建完整图后复测 |
 | STM32 固件 | 🟡 | 主机单测 5/5；实车待联调 |
@@ -49,21 +51,61 @@
 
 **结论：倒车后能正常前进转弯，没有卡死。** 倒车动作在终点附近可能超时（判据/终点容差），但不会锁死后续运动。
 
-## 4. 1 m/s 与动态障碍
+## 4. 1 m/s 与动态障碍（2026-11-08 复测）
 
-- **1 m/s**：控制器直发 1.0 m/s 已在 acceptance 中验证；Nav2 目标 (2.0,0) SUCCEEDED，终态 (1.987,−0.069,0.047)。墙钟 25s 主要受 Gazebo RTF/MPPI 2000 采样计算影响，不代表实车 1 m/s 用时。
-- **动态障碍**：在 (1.0,0) 生成半径 0.2m、高 0.6m 圆柱；目标 (0.2,0) → **ABORTED**，车停在 (1.379,−0.093)，距障碍 0.38m，**未碰撞但未绕行**。
-  - 说明：激光/costmap 能检测到并停车；当前 footprint/inflation/CostCritic 组合使车进入膨胀区后“无可行轨迹”。
-  - 改进：增大 `inflation_radius` 或在更远处开始避让；调 `CostCritic`/`PathAlign`；必要时换 TEB/RPP。窄通道/死胡同需同样调参后再压测。
+**1 m/s 前向**（`vx_max 1.0`、`max_velocity [1.0,0,1.0]`、融合 odom）：
 
-## 5. 传感器融合接入默认 odom：难度与方案
+| 目标 | 结果 | 用时 | 终态/定位误差 |
+|---|---|---|---|
+| (2.0,0) | SUCCEEDED | 8 s | 融合默认链路回归 |
+| (4.0,0) | SUCCEEDED | 8.2 s | AMCL (3.793,0.011) vs GT (3.827,0.053) ≈5.4 cm |
+| (6.0,0) | SUCCEEDED | 4.7 s | AMCL (5.822,0.012) vs GT (5.828,0.067) ≈5.5 cm |
 
-**现状**：`fusion.launch.py` → `/odometry/fused` 正常；Nav2 仍用控制器 `/odom`。
-**接入不难（约 1 小时），但要改三处，且必须回归测试**：
-1. 控制器 `enable_odom_tf: false`；把 `~/odometry` remap 到 `/wheel/odom`（control.xacro）；
-2. `sensor_fusion.py` 订阅 `/wheel/odom` + `/imu`，发布 `/odom` + TF `odom→base_footprint`；
-3. 启动融合节点，确认 TF 只有一套；再跑 AMCL/Nav2 回归（定位、倒车、前向）。
-**风险**：AMCL 的运动模型依赖 odom 质量；融合节点当前是互补滤波，需先验证航向/位置漂移再接管默认 odom。建议单独分支/launch 做，不要直接改默认链路。
+- 关键不是只改 `vx_max`：AMCL 默认 0.25m/0.2rad 才更新，1 m/s 下永远滞后。
+  改成 `0.10m/0.10rad`、`max_beams 90` 后误差从 16cm 降到 5~8cm。
+- 这些参数已写回 YAML；`vx_min` 仍为 −0.15，倒车不要跟高速混用。
+
+**动态障碍（两个场景，2026-11-08）**：
+
+1. **近墙终点（失败）**：障碍 (6.5,0)、目标 (8.0,0) → 60s 超时；车到
+   `(7.633,0.386,yaw −0.502)`，未碰撞、已从侧面绕开。目标距右墙仅约 0.5m，
+   终点本身落在膨胀区/不可达区，不能把这次失败当成“不会避障”。
+2. **终点不贴墙（通过）**：障碍 (4.0,0)、目标 (6.0,0) → **SUCCEEDED、12s、
+   0 恢复**；车到 `(5.779,−0.028)`。全局 costmap 在 (4.0,0) 的 cost=88，
+   而 (4.0,+0.4) 为 0，说明路径必须从障碍左侧绕行。12s 是从静止加速、
+   绕行到 6m 的总时间，不能和无障碍时 2.2m 后段的 4.7s 直接比较。
+
+- 结论：**检测/减速/绕行链路已打通**；失败集中在“终点贴墙/末端姿态”和
+  “旧场景目标在障碍后方且极近”这类**终点不可达**问题。
+- 改进：目标离墙 ≥1m；用 Waypoint/BT 把“绕过障碍”和“到终点”拆开；
+  窄通道再考虑 TEB/RPP 或分层 costmap。详见 §13 与五项报告。
+
+## 5. 传感器融合接入默认 odom：已完成（2026-11-08）
+
+**结果**：融合节点已成为默认 odom 源，Nav2 前向回归 `SUCCEEDED`（8s）。
+
+**改动三处（缺一不可）**：
+1. `control.xacro`：控制器 remap `/r5_steering_controller/odometry:=/wheel/odom`、
+   `/r5_steering_controller/tf_odometry:=/tf_wheel`；
+2. `controllers.yaml`：`enable_odom_tf: false`，避免和融合节点抢
+   `odom→base_footprint`；
+3. `sensor_fusion.py`：订阅 `/wheel/odom` + `/imu`，发布 `/odom`、
+   `/odometry/fused`、`/odometry/gyro_only` 和唯一 TF；`gazebo.launch.py`
+   默认 `use_fusion:=true`。
+
+**为什么这样拆**：控制器只提供“轮速里程计”原料；融合节点统一负责
+“最终 odom + TF”。TF 只能有一个广播者，否则 AMCL/costmap 会看到两棵树，
+出现闪烁、定位跳变、`Send goal call failed`。
+
+**验证**：
+- `ros2 topic hz /odom`、`ros2 run tf2_ros tf2_echo odom base_footprint` 正常；
+- `ros2 run tf2_ros tf2_monitor` 无重复 authority；
+- Nav2 `(2.0,0)` 8s 成功；1 m/s `(4.0,0)/(6.0,0)` 成功。
+
+**风险**：互补滤波的 `alpha=0.999` 偏重陀螺，长时间仍会漂；实车必须用
+轮径/IMU 标定后的数据复测，必要时换 `robot_localization`（EKF）。
+`fusion.launch.py` 仍保留为独立验证入口（包含的 Gazebo 用 `use_fusion:false`，
+再显式起一个融合节点，避免重复）。
 
 ## 6. 新图 → Nav2 闭环（待跑）
 
@@ -82,9 +124,9 @@ ros2 launch car_bringup nav2.launch.py map:=$HOME/car_ws/src/car_bringup/maps/ne
 
 ## 7. 建议下一步（优先级）
 
-1. 新图→Nav2 完整跑一遍（验证 map 参数/初始位姿/AMCL）。
-2. 动态障碍/窄通道：先调大 `inflation_radius`、降 `CostCritic` 激进参数，再压测；或换 TEB。
-3. 融合 odom 接入（按 §5，独立 launch 验证后再默认）。
+1. 新图→Nav2 在自己的地图上已基本跑通；剩余一个房间的卡壳留实机复测。
+2. 动态障碍：换“目标离墙 ≥1m + Waypoint/BT 分段”的场景复测；窄通道再考虑 TEB。
+3. 融合 odom 已默认接入；实车重点复测轮径/IMU 标定后的航向漂移。
 4. 1 m/s 在更大场地做直线/弯道压测（当前室内 + RTF 限制）。
 5. 实车：S6 固件烧录 → S8 标定 → S7 HW 插件 → S9 集成。
 
@@ -189,10 +231,12 @@ ros2 run nav2_map_server map_saver_cli -f ~/car_ws/src/car_bringup/maps/my_map
 4. **MPPI 起步无解**：`vx_min: 0.0` 时 `controller_server` 报
    `Optimizer fail to compute path`，车完全不动、只做恢复。改为 `-0.05`
    （前进目标）后 `(2.0, 0)` 目标 **SUCCEEDED**，AMCL 与真值差 3–5 cm。
-5. **速度/膨胀**：`vx_max 1.0 → 0.30`，`velocity_smoother` 0.30，
-   `acc_lim_x 1.0 / decel -1.5`，`inflation_radius 0.3 → 0.25`，
-   `min_turning_r 0.35`。原来 0.56 m/s 会冲过目标/顶墙，是“闪烁/恢复”的
-   放大器。
+5. **速度/膨胀（历史参数）**：当时把 `vx_max 1.0 → 0.30`，
+   `velocity_smoother` 0.30，`acc_lim_x 1.0 / decel -1.5`，
+   `inflation_radius 0.3 → 0.25`，`min_turning_r 0.35`；原来 0.56 m/s
+   会冲过目标/顶墙，是“闪烁/恢复”的放大器。**2026-11-08 已重新把限速
+   提到 1.0 m/s**，并通过 AMCL 更新率/波束调参把误差压到 5~8cm（§4）；
+   本节保留为历史排障记录。
 6. **剩余问题**：目标 `(-3.0, 0.5)`（左房间）会规划出 **15–16 m 绕行路
    径**，MPPI 跟踪/恢复后仍 ABORTED；`(2.0, 0)` 前进目标已稳定成功。说明
    `my_room_map` 左房间的连通/通道仍需处理：建议按 §10 重跑一张**完整新
@@ -252,4 +296,18 @@ RViz 的 LaserScan 还会看到；如需彻底消掉可加 `laser_filters` 或�
   2. 用 Waypoint Follow / BT 分段（每段 ≤0.6m）替代单条 18m 目标；
   3. 目标 yaw 选可行接近方向（例如进左房间朝 −y），或把最终朝向容差放宽；
   4. 仍不行再换 RPP/TEB。
-- 动态障碍、窄通道、1 m/s、融合默认 odom 仍未完成；不要把它们误判为“已通过”。
+- 1 m/s 与融合默认 odom 已通过前向回归；动态障碍在终点离墙场景已闭环，
+  近墙终点仍未闭环；窄通道/死胡同仍未压测。不要把它们误判为全部通过。
+
+## 13. 五项问题总判定（2026-11-08）
+
+| # | 问题 | 判定 | 一句话结论 |
+|---|---|---|---|
+| 1 | 左房间/长路径 | 🟡 留实机 | 地图 17.7~18.1m 长路径 + 目标 yaw 不可达；用 BT/Waypoint 分段 + 可行 yaw，不在仿真继续硬调 |
+| 2 | 动态障碍/窄通道 | 🟡 部分 | 终点离墙 ≥1m：1 m/s 12s 绕行通过；终点贴墙：60s 超时；窄通道未做 |
+| 3 | 1 m/s 高速 | ✅ 仿真 | 4m/6m 目标均成功；关键修 AMCL 更新率（0.10m/0.10rad、90 束），误差 16→5.5cm |
+| 4 | 融合默认 odom | ✅ 仿真 | 控制器只发 `/wheel/odom`，融合发 `/odom`+唯一 TF；前向/高速回归通过 |
+| 5 | 新图→Nav2 闭环 | 🟡 留实机 | 用户自有地图除一个房间外可用；剩余问题在地图/场景，非 Nav2 主链，实机复测更合适 |
+
+原因、修复、工程常见度与实机注意事项：
+[`reports/FIVE_ISSUES_SIM_REPORT.md`](reports/FIVE_ISSUES_SIM_REPORT.md)。

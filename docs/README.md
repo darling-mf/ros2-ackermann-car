@@ -31,6 +31,7 @@
 |---|---|
 | [../src/r5_steering_controller/EXPERIMENT_LOG.md](../src/r5_steering_controller/EXPERIMENT_LOG.md) | Round 1~17：功能→预测→测试→破案→修复→复测 |
 | [reports/NAV2_DEBUG_REPORT.md](reports/NAV2_DEBUG_REPORT.md) | Nav2 闪烁/TF/自击 costmap/RTF 的完整排查 |
+| [reports/FIVE_ISSUES_SIM_REPORT.md](reports/FIVE_ISSUES_SIM_REPORT.md) | 左房间/动态障碍/1 m/s/融合默认 odom/新图闭环：原因、方案、工程常见度 |
 | [READING_GUIDE.md](READING_GUIDE.md) | 文件定位、阅读顺序、S4/S6、雷达选型、轴距实测 |
 | [../patches/README.md](../patches/README.md) | 上游 ros2_controllers 补丁与应用方法 |
 | [面试题-ROS2阿克曼小车-全栈75题.docx](面试题-ROS2阿克曼小车-全栈75题.docx) | 面试准备题库 |
