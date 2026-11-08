@@ -1,113 +1,244 @@
-# 系统架构
+# System Architecture
 
-> 目标：一页看懂“谁负责什么、数据怎么流、每个包从哪读起”。
-> 更细的逐行/改动指南见 [ENGINEERING_HANDOVER.md](ENGINEERING_HANDOVER.md)；
-> 文件级地图见 [PROJECT_MAP.md](PROJECT_MAP.md)。
+This document describes the public, buildable 2D LiDAR Ackermann stack: which
+package owns each layer, which files implement it, and how data and TF flow.
 
-## 1. 一句话
+## 1. Scope
 
-一台 **TARKBOT R5 阿克曼小车**：Gazebo Classic 仿真（或实车）→
-`ros2_control` 底盘执行 → Nav2 全局/局部规划 → 2D 雷达建图/AMCL 定位；
-另有一条 **X-Protocol 串口桥 + STM32 固件** 的实车链路。
+The robot is a rear-drive / front-steer Ackermann platform based on a TARKBOT
+R5-class chassis. The stack is developed and measured in Gazebo Classic 11 on
+ROS 2 Humble. The real-vehicle boundary is kept behind `ros2_control` so the
+upper layers do not change when the simulation is replaced by hardware.
 
-## 2. 分层架构
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│ 任务层   bt_navigator + BehaviorTree（akm_navigate_*.xml）    │
-│          输入：/navigate_to_pose    输出：调规划/控制/恢复     │
-├──────────────────────────────────────────────────────────────┤
-│ 全局规划 planner_server + SmacPlannerHybrid (Reeds-Shepp)     │
-│          输入：map + costmap + goal   输出：/plan            │
-├──────────────────────────────────────────────────────────────┤
-│ 局部控制 controller_server + MPPI (Ackermann)                │
-│          输入：/plan + local costmap 输出：/cmd_vel_nav      │
-├──────────────────────────────────────────────────────────────┤
-│ 速度整形 velocity_smoother（加速度/限速）→ /cmd_vel          │
-├──────────────────────────────────────────────────────────────┤
-│ 底盘执行 r5_steering_controller（50Hz）                       │
-│          /cmd_vel → 后轮 velocity + 前轮 position            │
-├──────────────────────────────────────────────────────────────┤
-│ 仿真/硬件边界 gazebo_ros2_control（现在）/ SystemInterface（实车）│
-└──────────────────────────────────────────────────────────────┘
-
-感知/定位支路：
-/scan (2D lidar) ─┬─ AMCL：map→odom
-                  └─ costmap：局部/全局障碍
-/wheel/odom + /imu ── sensor_fusion.py：互补滤波 → /odom + 唯一 TF（默认）
-Gazebo p3d ── /ground_truth：仅用于量化对比
+```text
+Task layer        bt_navigator + behavior trees
+Planning          SmacPlannerHybrid (Reeds-Shepp)
+Local control     MPPI (Ackermann motion model)
+Velocity shaping  velocity_smoother
+Chassis           r5_steering_controller (ros2_control)
+Hardware boundary gazebo_ros2_control / SystemInterface
 ```
 
-**关键边界**：
+## 2. Package Responsibilities
 
-- `MPPI` 是 Nav2 的**局部控制器**，负责跟踪 + 局部避障；
-- `LQR / Pure Pursuit / Stanley` 是 `path_tracker.py` 的**独立实验**，
-  不参与 Nav2 主链，直接发 `/cmd_vel`；与 Nav2 **互斥**；
-- `r5_steering_controller` 只做阿克曼 IK/限幅，不决定“往哪走”。
-
-## 3. 包职责
-
-| 包 | 职责 | 关键文件 |
+| Package | Responsibility | Key files |
 |---|---|---|
-| `car_description` | URDF/xacro、Gazebo 世界、RViz 配置 | `urdf/car.urdf.xacro`、`urdf/car/control.xacro`、`wheels.xacro` |
-| `car_bringup` | 启动、参数、地图、实验脚本、RViz | `launch/*.launch.py`、`config/{controllers,nav2_params}.yaml`、`scripts/` |
-| `r5_steering_controller` | 自研 C++ 阿克曼控制器（三限幅） | `src/r5_steering_controller.cpp` |
-| `r5_serial` | X-Protocol 串口桥、虚拟 STM32 | `r5_serial/{protocol,serial_bridge,virtual_stm32}.py` |
-| `car_navigation` | 阿克曼行为树（无 Spin、大 BackUp） | `behavior_trees/akm_navigate_*.xml` |
-| `firmware/openctr_b20` | STM32 侧纯 C 模块（协议/看门狗/几何） | `src/{xprotocol,safety,ackermann}.c` |
-| `patches` | 上游 ros2_controllers 修改归档 | `ros2_controllers-r5.patch` |
-| `scripts` | 仓库级运维脚本 | `sync-to-pi.sh` |
+| `car_description` | URDF/xacro, Gazebo world, RViz configs | `urdf/car.urdf.xacro`, `urdf/car/control.xacro`, `urdf/car/wheels.xacro`, `world/custom_room.world` |
+| `car_bringup` | Launch files, Nav2/controller params, maps, diagnostics | `launch/*.launch.py`, `config/controllers.yaml`, `config/nav2_params.yaml`, `config/slam_toolbox.yaml` |
+| `r5_steering_controller` | Custom C++ Ackermann controller and safety limits | `src/r5_steering_controller.cpp`, `include/r5_steering_controller/r5_steering_controller.hpp` |
+| `car_navigation` | Ackermann-specific Nav2 behavior trees | `behavior_trees/akm_navigate_to_pose.xml`, `akm_navigate_through_poses.xml` |
+| `r5_serial` | X-Protocol serial bridge and virtual STM32 | `r5_serial/protocol.py`, `serial_bridge.py`, `virtual_stm32.py`, `serial_port.py` |
+| `firmware/openctr_b20` | Portable STM32 C modules and host tests | `src/xprotocol.c/.h`, `src/safety.c/.h`, `src/ackermann.c/.h`, `test/test_host.c` |
+| `patches` | Upstream `ros2_controllers` changes | `ros2_controllers-r5.patch` |
 
-## 4. 一次导航的数据流
+## 3. Control Chain
 
-1. RViz/脚本发 `/navigate_to_pose`；
-2. `bt_navigator` 执行 `akm_navigate_to_pose.xml`；
-3. `planner_server`（Smac Hybrid）发布 `/plan`；
-4. `controller_server`（MPPI）输出 `/cmd_vel_nav`；
-5. `velocity_smoother` 输出 `/cmd_vel`；
-6. `r5_steering_controller` 做阿克曼 IK，写关节命令；
-7. Gazebo/实车执行，关节状态回到控制器；
-8. 控制器发布 `/wheel/odom`（`enable_odom_tf: false`，不发 TF）；
-9. `sensor_fusion.py` 用 `/wheel/odom` + `/imu` 发布 `/odom` 和唯一的
-   `odom→base_footprint`；
-10. AMCL 用 `/scan` + `/odom` 发布 `map→odom`；
-11. costmap 更新，回到 2/3 闭环。
+### 3.1 From command to joints
 
-## 5. 启动模式（互斥关系）
+```text
+/cmd_vel (geometry_msgs/Twist)
+   |
+   v
+r5_steering_controller::update()
+   |-- acceleration ramp
+   |-- speed-dependent steering limit
+   |-- steering-rate limit
+   |-- Ackermann inverse kinematics
+   v
+rear_wheel_joint velocity x2 + front_steer_joint position x2
+   |
+   v
+gazebo_ros2_control / real SystemInterface
+```
 
-| 命令 | 内容 | 与谁互斥 |
+The controller is a fork of the upstream
+`ackermann_steering_controller`. The upstream controller writes reference
+interfaces every cycle; the custom layer therefore post-processes the final
+commands in `update()` instead of duplicating the upstream kinematics.
+
+### 3.2 Why the limits exist
+
+| Limit | Reason | Location |
 |---|---|---|
-| `ros2 launch car_bringup gazebo.launch.py` | Gazebo + 控制器 | 可与 Nav2/建图叠加 |
-| `ros2 launch car_bringup sim_nav2.launch.py` | Gazebo + Nav2 + RViz（一条命令） | 不要重复启动 |
-| `ros2 launch car_bringup nav2.launch.py` | Nav2（需已有 Gazebo/实车） | 不要与建图同时 |
-| `ros2 launch car_bringup mapping.launch.py` | Gazebo + slam_toolbox | 不与 Nav2/AMCL 同时 |
-| `ros2 launch car_bringup fusion.launch.py` | Gazebo + 互补滤波 | 不启动 Nav2 |
-| `ros2 run car_bringup path_tracker.py` | PP/Stanley/LQR 实验 | 不与 Nav2 同时发 `/cmd_vel` |
+| Acceleration ramp | Protects the motor driver and current budget; avoids wheel slip at launch | `r5_steering_controller.cpp` |
+| Steering-rate limit | Servo specification: about 9.5 rad/s at the steering joint | `controllers.yaml` (`max_steer_rate`) |
+| Speed-dependent steering | Bounds lateral acceleration `a_y = v^2 * tan(phi) / L`; prevents high-speed side slip | `r5_steering_controller.cpp` |
+| Steering-angle clamp | Upstream controller does not implement a physical steering limit | controller source / patch |
 
-## 6. 2D 雷达/定位链路
+Relevant parameters live in
+`src/car_bringup/config/controllers.yaml`:
 
-- 仿真：`laser.xacro` 的 Gazebo ray → `/scan`；
-- 实车：RPLIDAR A1M8（apt 驱动）或 LD19（UART），统一 `/scan`；
-- 建图：`slam_toolbox`（`config/slam_toolbox.yaml`，0.1–10m）；
-- 定位：AMCL（`nav2_params.yaml` 的 `amcl`），输出 `map→odom`；
-- 避障：local/global costmap 的 `obstacle/voxel_layer` + `inflation_layer`；
-- 已知坑：激光扫到车体（min_range 0.25）、TF 多实例、地图/初始位姿不一致。
+```yaml
+wheelbase: 0.146
+front_wheel_track: 0.160
+rear_wheel_track: 0.160
+front_wheels_radius: 0.0325
+rear_wheels_radius: 0.0325
+max_steering_angle: 0.235
+r5.max_steer_rate: 9.5
+r5.max_accel: 0.8
+r5.max_decel: 1.5
+r5.a_lat_max: 2.0
+```
 
-## 7. 实车边界
+The values are simulation defaults and must be re-measured on the real chassis.
 
-仿真用 `gazebo_ros2_control/GazeboSystem`；实车需写
-`hardware_interface::SystemInterface`，导出同样的
-`后轮 velocity×2 + 前轮 position×2` 命令接口与轮速/IMU 状态接口。
-上层 `r5_steering_controller` 不改。串口协议与固件模块见
-[../src/r5_serial/docs/S5_SERIAL_BRIDGE.md](../src/r5_serial/docs/S5_SERIAL_BRIDGE.md)
-与 [../firmware/openctr_b20/README.md](../firmware/openctr_b20/README.md)。
+### 3.3 Odometry ownership
 
-## 8. 已知边界
+```text
+r5_steering_controller  -> /wheel/odom   (enable_odom_tf: false)
+sensor_fusion.py        -> /odom + odom -> base_footprint
+AMCL                    -> map -> odom
+```
 
-- 3D 激光（FAST-LIO / FAST-LIO-SAM-QN / livox）已弃用，源码保留在
-  `src/`，不参与构建；
-- 融合已接管默认 `/odom`：控制器只发 `/wheel/odom`，融合节点是唯一
-  `odom→base_footprint` 广播者；1 m/s 前向导航已验证，实车需重新标定轮径/IMU；
-- 动态障碍在 1 m/s、终点离墙 ≥1m 时可 12s 绕行通过；目标贴近墙时可能因
-  终点不可达超时；窄通道/死胡同未压测；
-- 实车 S7~S9 未开始（需要硬件）。
+There is exactly one `odom -> base_footprint` broadcaster. This is deliberate:
+two publishers create two TF trees, which makes AMCL and the costmaps jump.
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#1-duplicate-nav2-instances-and-two-tf-trees).
+
+## 4. Navigation Stack
+
+### 4.1 Task layer
+
+`src/car_navigation/behavior_trees/akm_navigate_to_pose.xml` and
+`akm_navigate_through_poses.xml` define the recovery behavior. The trees do not
+use in-place `Spin`; an Ackermann chassis cannot rotate at zero speed. Recovery
+uses bounded `BackUp` and `DriveOnHeading` instead.
+
+`src/car_bringup/launch/nav2.launch.py` loads `config/nav2_params.yaml` and
+injects the custom trees, so the behavior-tree selection is part of the launch
+contract rather than a manual RViz setting.
+
+### 4.2 Global planning
+
+`planner_server` uses `SmacPlannerHybrid` with `REEDS_SHEPP` motion primitives:
+
+```yaml
+planner_server:
+  ros__parameters:
+    GridBased:
+      plugin: nav2_smac_planner/SmacPlannerHybrid
+      motion_model_for_search: REEDS_SHEPP
+      minimum_turning_radius: 0.35
+      reverse_penalty: 2.0
+```
+
+The planner is allowed to reverse because the vehicle has a minimum turning
+radius and some goals are behind the current heading. Reverse motion is
+penalized so forward paths are preferred.
+
+### 4.3 Local control
+
+`controller_server` runs `nav2_mppi_controller::MPPIController` with:
+
+```yaml
+motion_model: Ackermann
+AckermannConstraints:
+  min_turning_r: 0.35
+vx_max: 1.0
+vx_min: -0.15
+```
+
+MPPI tracks the global path and performs local obstacle avoidance. Pure
+Pursuit, Stanley, and LQR are implemented separately in
+`src/car_bringup/scripts/path_tracker.py`; they are controller experiments and
+must not publish `/cmd_vel` while Nav2 is active.
+
+### 4.4 Velocity shaping
+
+`velocity_smoother` limits the final command before the chassis controller.
+Its `max_velocity` must match the MPPI `vx_max`; otherwise the planner and the
+execution layer disagree about the achievable speed.
+
+## 5. Localization and Perception
+
+### 5.1 2D LiDAR
+
+```text
+Gazebo ray sensor / real RPLIDAR or LD19
+        |
+        v
+      /scan
+        |-- AMCL (likelihood field)
+        |-- local costmap obstacle layer
+        |-- global costmap obstacle layer
+```
+
+The simulation sensor is defined in
+`src/car_description/urdf/car/laser.xacro`; the mapping parameters are in
+`src/car_bringup/config/slam_toolbox.yaml`.
+
+### 5.2 AMCL
+
+AMCL consumes `/scan`, `/odom`, and the static map, and publishes
+`map -> odom`. The important parameters are in
+`src/car_bringup/config/nav2_params.yaml`:
+
+- `max_beams: 90`
+- `update_min_d: 0.10`
+- `update_min_a: 0.10`
+- `laser_min_range: 0.25`
+
+The tighter update thresholds are needed at 1.0 m/s; the default 0.25 m
+distance threshold makes the filter lag behind the vehicle.
+
+### 5.3 Costmaps
+
+Both local and global costmaps use an obstacle layer plus an inflation layer.
+The robot footprint is a rectangle, and `raytrace_min_range` /
+`obstacle_min_range` are set to 0.25 m so that LiDAR returns from the vehicle's
+own front wheels do not inflate into the robot center. See
+[TROUBLESHOOTING.md](TROUBLESHOOTING.md#2-lidar-sees-the-robot-itself).
+
+## 6. Serial and Firmware Boundary
+
+The real-vehicle link is an X-Protocol frame stream over UART:
+
+```text
+AA 55 LEN ID DATA CHECK
+```
+
+`r5_serial` implements the ROS-side bridge and a virtual STM32 over a pty for
+hardware-free integration tests. `firmware/openctr_b20` contains the portable C
+modules:
+
+- `xprotocol.c/.h`: frame parser and builder;
+- `safety.c/.h`: 300 ms command watchdog;
+- `ackermann.c/.h`: virtual steering angle, inner-wheel angle, and servo
+  mapping with a configurable steering geometry.
+
+The firmware modules are host-tested with `gcc`; vendor firmware and manuals
+are not redistributed in this repository.
+
+## 7. Launch Modes
+
+| Command | Starts | Mutual exclusion |
+|---|---|---|
+| `gazebo.launch.py` | Gazebo + controller + fusion | Can be combined with Nav2 |
+| `sim_nav2.launch.py` | Gazebo + Nav2 + RViz | Do not start a second Nav2 |
+| `nav2.launch.py` | Nav2 only | Not with mapping |
+| `mapping.launch.py` | Gazebo + `slam_toolbox` | Not with Nav2/AMCL |
+| `fusion.launch.py` | Gazebo + one explicit fusion node | Does not start Nav2 |
+
+Only one process may publish `/cmd_vel` at a time. `cleanup_sim.sh` stops
+leftover Nav2 containers, Gazebo, RViz, mapping, and fusion processes.
+
+## 8. Design Decisions and Trade-offs
+
+| Decision | Alternative | Why this choice |
+|---|---|---|
+| Custom controller post-processing | Copy the upstream controller | Small patch, preserves upstream kinematics and tests |
+| Smac Hybrid + Reeds-Shepp | Pure Dubin | Handles goals behind the vehicle and tight indoor turns |
+| MPPI local controller | DWB / TEB | Good Ackermann support in Humble; predictable behavior with a rectangular footprint |
+| Wheel + gyro complementary filter | Pure wheel odometry | Gyro supplies heading; wheel speed supplies translation; simple and testable |
+| One fusion-owned TF | Controller and fusion both publish TF | Removes duplicate authority and AMCL jumps |
+| Custom BT without `Spin` | Default Nav2 BT | An Ackermann vehicle cannot rotate in place |
+
+## 9. Known Boundaries
+
+- Long paths into the left room can exceed the local controller's effective
+  horizon and time out; segmented waypoints are the intended next step.
+- Goals closer than about 0.5 m to a wall may be unreachable because the goal
+  lies inside the inflated costmap.
+- Narrow-passage and moving-obstacle stress tests are not complete.
+- The real-vehicle `SystemInterface`, wheel/IMU calibration, and integration
+  are not finished. Simulation values are not a substitute for measurement.

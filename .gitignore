@@ -7,6 +7,13 @@ __pycache__/
 my_mapping_bag/
 my_final_map/
 
+# 本地工程笔记（保留在本机，不进入公开仓库）
+notes/
+docs/reports/
+
+# 厂家固件/手册（第三方，体积大，不公开）
+vendor/
+
 # 忽略外部依赖库 (FAST_LIO 本身是独立仓库)
 src/FAST_LIO/
 src/FAST-LIO-SAM-QN

@@ -22,7 +22,7 @@ install(
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(FILES README.md CONTROL_DEBUG_NOTES.md ARCHITECTURE.md ROADMAP_TO_REAL.md
+install(FILES README.md
   DESTINATION share/${PROJECT_NAME})
 
 ament_package()

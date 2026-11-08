@@ -18,7 +18,7 @@ amcl:
     laser_min_range: 0.25
     laser_model_type: "likelihood_field"
     # 1 m/s 高速下 60 束更新太稀，AMCL 会滞后；90 束 + 更短的更新间隔
-    # 把直行 4~6 m 的定位误差从约 16 cm 压到 5~8 cm（实测见 SIM_TODO §4）。
+    # 把直行 4~6 m 的定位误差从约 16 cm 压到 5~8 cm（实测见 docs/VALIDATION.md）。
     max_beams: 90
     max_particles: 2000
     min_particles: 500
