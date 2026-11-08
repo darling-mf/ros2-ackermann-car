@@ -165,6 +165,12 @@ No real-vehicle navigation result is claimed. The hardware interface, wheel
 radius/track calibration, IMU bias calibration, and emergency-stop integration
 remain. Simulation values are a baseline, not a calibration certificate.
 
+The repository currently contains two provisional geometry sets: the URDF uses
+the drawing dimensions (`0.112 m` wheelbase, `0.164 m` track), while
+`controllers.yaml` uses the firmware/controller dimensions (`0.146 m`,
+`0.160 m`). This mismatch is a known calibration item and must be resolved before
+real-vehicle navigation.
+
 ## 7. Reproduce
 
 ```bash

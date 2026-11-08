@@ -10,7 +10,7 @@
     <xacro:property name="track" value="0.164"/>
     
     <!-- 车轮尺寸：手册参数表为 65mm 橡胶轮胎（与“330rpm×1.2m/s”反推一致）；
-         图纸上的 49 标注疑为轮毂直径。TODO：拿实物量外径确认，
+         图纸上的 49 标注疑为轮毂直径。待实测：拿实物量外径确认，
          若实测不是 65 只需改这一个数（轮径直接乘进里程计和最大车速）。 -->
     <xacro:property name="wheel_radius" value="0.0325"/>
     <xacro:property name="wheel_width" value="0.045"/>

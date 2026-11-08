@@ -82,6 +82,10 @@ r5.a_lat_max: 2.0
 ```
 
 The values are simulation defaults and must be re-measured on the real chassis.
+The URDF currently carries the drawing geometry (`0.112 m` wheelbase,
+`0.164 m` track), while `controllers.yaml` carries the firmware/controller
+values (`0.146 m`, `0.160 m`). This is a known calibration item: do not treat
+either set as final until the chassis is measured.
 
 ### 3.3 Odometry ownership
 

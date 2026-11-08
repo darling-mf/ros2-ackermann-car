@@ -15,7 +15,7 @@ r5_steering_controller:
     wheelbase: 0.146          # 轴距 m
     front_wheel_track: 0.160  # 前轮距 m
     rear_wheel_track: 0.160   # 后轮距 m
-    front_wheels_radius: 0.0325   # 实车 65mm 轮胎（TODO 实测确认，见 common.xacro 注释）
+    front_wheels_radius: 0.0325   # 实车 65mm 轮胎（待实测确认，见 common.xacro 注释）
     rear_wheels_radius: 0.0325
 
     # ================= 2. 关节名称与顺序（控制器内部约定“右、左”） =================
