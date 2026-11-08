@@ -1,5 +1,12 @@
 # SIM_TODO —— 仿真验证清单与结果（2026-10-28）
 
+> **2026-10-29 最新结论（以此为准）**：当前导航参数为速度 0.3 m/s、
+> 慢倒车 −0.15 m/s、`reverse_penalty 2.0`、`min_turning_r 0.35`。
+> 前进目标 `(2.0,0)` **SUCCEEDED、0 次恢复**；左房间 `(-3.0,0.5)` 仍
+> **ABORTED**（15–16m 绕行/地图连通性）；倒车发散已用慢倒车控制住。
+> 下文 §2–§4 是 2026-10-28 的旧参数历史数据，保留用于对比，不要当成当前配置。
+> 详细证据见 [`reports/NAV2_DEBUG_REPORT.md`](reports/NAV2_DEBUG_REPORT.md)。
+
 > 状态图例：✅ 已验证；🟡 部分/有条件；⬜ 未做。
 > 所有 `ros2 launch/run` 命令均假设已 `source install/setup.bash`。
 
@@ -9,14 +16,14 @@
 |---|---|---|
 | 底盘执行 + 控制器 | ✅ | acceptance 三项 PASS；38 上游单测 |
 | Nav2 前进导航 | ✅ | 目标 (0.8,0) SUCCEEDED，车到 x≈0.68 |
-| 倒车 ≤1.6m（三连测） | ✅ 2/3 | 见 §2；长距离 >2m 需分段 |
+| 倒车（短距） | 🟡 | 历史 2/3（旧参数）；当前慢倒车 −0.15 定位稳定，长路径/左房间仍 ABORTED |
 | **倒车后前进转弯** | ✅ | 见 §3：倒车后 +0.5 目标 8s SUCCEEDED，未卡死 |
-| 1 m/s | 🟡 | 控制器直发 1.0 已由 acceptance 验证；Nav2 目标 (2.0,0) SUCCEEDED（25s 墙钟，受仿真 RTF/MPPI 计算影响） |
-| 动态障碍 | 🟡 | 生成 0.4m 圆柱后：**能检测停车，不能绕行**（ABORTED，未碰撞） |
+| 1 m/s | ⬜ | 当前 Nav2 限速 0.3；控制器直发 1.0 曾由 acceptance 验证，但未做高速导航压测 |
+| 动态障碍 | 🟡 | 旧参数下能检测停车、不能绕行；新参数下未复测 |
 | 窄通道/死胡同 | ⬜ | 未构造压测；动态障碍测试已暴露 MPPI 在障碍前易停死 |
 | 传感器融合 | 🟡 | 算法/launch/量化已完成，未接入默认 odom（见 §5） |
 | 2D 建图 | ✅ | mapping.launch.py；/map 350×219@0.05；map_saver 保存成功 |
-| 新图→Nav2 闭环 | 🟡 | map 参数已加；尚未用新建完整图跑一遍导航 |
+| 新图→Nav2 闭环 | 🟡 | map 参数已加；左房间失败指向地图连通性，需重建完整图后复测 |
 | STM32 固件 | 🟡 | 主机单测 5/5；实车待联调 |
 | 实车 S7/S8/S9 | ⬜ | 需硬件 |
 
@@ -121,3 +128,111 @@ ros2 launch slam_toolbox online_async_launch.py \
 
 RViz `context mismatch in svga surface destroy` 是 VMware/OpenGL 驱动告警；
 若 RViz 崩溃，用 `rviz:=false` 先建图，再单独开 RViz；不影响 slam_toolbox。
+
+## 10. RViz 建图可视化修复（2026-10-29）
+
+**症状**：`ros2 launch car_bringup mapping.launch.py` 只出 Gazebo，没有 RViz。
+
+**根因（三层叠在一起）**：
+1. `mapping.launch.py` 以 `rviz:=false` 包含 `gazebo.launch.py`。
+   `IncludeLaunchDescription` 的 `launch_arguments` 会写进**共享**的 launch
+   配置，把顶层的 `rviz` 也覆盖成 false，导致建图 RViz 的条件永远不成立。
+   已用 `GroupAction(scoped=True)` 隔离这次覆盖。
+2. `slam_toolbox` 的 apt 包**不带** `rviz/slam_toolbox_default.rviz`，原来
+   `mapping.launch.py` 指向这个不存在的文件。已新增
+   `src/car_bringup/rviz/mapping.rviz`。
+3. VMware/Mesa 下 RViz 的 `Map` 显示会报
+   `indexed_8bit_image ... active samplers with a different type refer to the
+   same texture image unit`（Ogre 1.12 已知 shader 问题），地图纹理发花。
+   新增 `scripts/map_to_points.py`：把 `/map` 转成 `/map_points` Marker
+   （灰=空闲、红=占用、未知透明），`mapping.rviz` 默认禁用 `Map`、显示
+   `MapPoints`。RViz 节点同时设置 `LIBGL_ALWAYS_SOFTWARE=1`，避免 VMware
+   下 3D 视图全黑。
+
+**推荐用法（VMware 下 Gazebo 不开 GUI，只开 RViz）**：
+```bash
+ros2 run car_bringup cleanup_sim.sh
+ros2 launch car_bringup mapping.launch.py gui:=false
+# 自动启动：Gazebo(无界面) + slam_toolbox + map_to_points + RViz
+```
+建图/保存流程不变：
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+ros2 run nav2_map_server map_saver_cli -f ~/car_ws/src/car_bringup/maps/my_map
+```
+**验证**：RViz 自动启动、Fixed Frame=map、MapPoints 有灰/红点、`/map`
+持续更新；新会话起始 `/map` 350×219@0.05。
+
+## 11. Nav2 闪烁 / TF 报错 / 定位丢失复盘（2026-10-29）
+
+**症状**：Gazebo 里车正常，Nav2 跑导航时 RViz 闪烁、TF 树报错、恢复次数
+暴涨；发左房间目标最终 `ABORTED`。实测复现并逐项修复：
+
+1. **重复实例**：`cleanup_sim.sh` 里 `pkill -x component_contai` 与实际
+   comm `component_conta`（15 字符截断）不匹配，Nav2 容器一直残留；再叠
+   加“只跑 Nav2、没跑 Gazebo”时 `/scan`、`/odom`、`/clock` 都没有发布者，
+   TF 必然断链。已修 cleanup（`component_conta` + `nav2_container`），并
+   把 `sim_nav2.launch.py` / `mapping.launch.py` 的 Gazebo include 用
+   `GroupAction(scoped=True)` 隔离 `rviz:=false`，避免把 Nav2/建图 RViz 关掉。
+2. **RViz TF 报错**：`nav2.launch.py` 原来用 nav2_bringup 默认视图，TF/
+   RobotModel 引用 TurtleBot 的 `camera_link`、`caster_*`、`wheel_*`，本车
+   没有这些帧。新增 `rviz/nav2.rviz`（TF `All Enabled`、RobotModel 全部本
+   车 link），`nav2.launch.py` 改用它；日志不再出现 “No transform from…”。
+   由于 VMware 下硬件 GL 会黑屏，Nav2 RViz 也设置
+   `LIBGL_ALWAYS_SOFTWARE=1`；Mesa 下 Map 纹理可能仍有条纹（Ogre shader
+   已知问题），不影响地图数据/代价地图/导航。
+3. **倒车导致 AMCL 爆炸（核心）**：目标在车后时，MPPI 以 **-0.4 m/s**
+   倒车弧线；控制器 odom 与 Gazebo 真值误差从 0.06 m 涨到 0.84 m，AMCL
+   估计从 0.07 m 偏到 **7.5 m**，粒子打满 2000、std 1.2/1.7 m，恢复 18 次
+   后 ABORTED。改为 **REEDS_SHEPP + reverse_penalty 2.0 + vx_min -0.15**
+   （慢速倒车）后，同场景 AMCL 误差保持 **0.1–0.3 m**，TF 稳定。
+4. **MPPI 起步无解**：`vx_min: 0.0` 时 `controller_server` 报
+   `Optimizer fail to compute path`，车完全不动、只做恢复。改为 `-0.05`
+   （前进目标）后 `(2.0, 0)` 目标 **SUCCEEDED**，AMCL 与真值差 3–5 cm。
+5. **速度/膨胀**：`vx_max 1.0 → 0.30`，`velocity_smoother` 0.30，
+   `acc_lim_x 1.0 / decel -1.5`，`inflation_radius 0.3 → 0.25`，
+   `min_turning_r 0.35`。原来 0.56 m/s 会冲过目标/顶墙，是“闪烁/恢复”的
+   放大器。
+6. **剩余问题**：目标 `(-3.0, 0.5)`（左房间）会规划出 **15–16 m 绕行路
+   径**，MPPI 跟踪/恢复后仍 ABORTED；`(2.0, 0)` 前进目标已稳定成功。说明
+   `my_room_map` 左房间的连通/通道仍需处理：建议按 §10 重跑一张**完整新
+   图**（覆盖左右房间、回环闭合），再测左房间目标；或改用 RPP/TEB 做窄
+   通道跟踪。`yaw_goal_tolerance: 0.30` 对阿克曼偏严，必要时放宽到
+   0.5–0.8，或让目标朝向沿接近方向。
+
+**当前推荐命令**：
+```bash
+ros2 run car_bringup cleanup_sim.sh
+ros2 launch car_bringup sim_nav2.launch.py gui:=false   # 无 Gazebo GUI，自动 Nav2+RViz
+# 先发前进目标验证：(2.0, 0) 成功；左房间目标需先重建地图
+```
+
+## 12. 代价地图“自己标自己” / 自清洁问题（2026-10-29）
+
+**现象**：Nav2 行动过程中机器人脚下出现粉/红代价地图圈，原地卡死；
+RViz 里 plan 到车就结束，`Feedback: aborted`。看起来像“代价地图没自清洁”。
+
+**实测 `/scan`（360 条）**：
+- **148 条 < 0.35 m**，最近 **0.100 m**（雷达自身 min range）；
+- 角度集中在 **±69°、±110°、±135°、180°**，是前轮/转向机构/后车体；
+- 前方 0° 是 8.3 m（正常），说明不是地图/环境问题，是**雷达看到了自己**。
+
+**根因**：`nav2_params.yaml` 里 local/global 的 scan 观测源
+`obstacle_min_range: 0.0`、`raytrace_min_range: 0.0`，把 0.1–0.17 m 的
+自身回波当障碍标记；`inflation_radius: 0.25` 再把这些点膨胀到车体中心。
+`footprint_clearing_enabled` 只清足迹内部，边界点/全局层仍会被膨胀覆盖，
+所以“自清洁”不是万能开关；更直接的是**别把足迹内的回波喂给代价地图**。
+
+**修复**（`config/nav2_params.yaml`）：
+- local `voxel_layer.scan` 和 global `obstacle_layer.scan`：
+  `raytrace_min_range: 0.25`、`obstacle_min_range: 0.25`；
+- 两层显式 `footprint_clearing_enabled: true`；
+- AMCL `laser_min_range: 0.25`，定位也不吃自身回波。
+
+**验证**：重启 Nav2 后读代价地图，机器人中心
+`LOCAL center=0`、`GLOBAL center=0`，±5 格 patch 全为 `.`（free），
+没有 `#`/`+`。`/scan` 本身仍会显示 0.10 m 自击点（传感器原始数据），
+RViz 的 LaserScan 还会看到；如需彻底消掉可加 `laser_filters` 或抬高雷达。
+
+> 这两个问题的完整排查链、证据、取舍与验证见
+> [`reports/NAV2_DEBUG_REPORT.md`](reports/NAV2_DEBUG_REPORT.md)。

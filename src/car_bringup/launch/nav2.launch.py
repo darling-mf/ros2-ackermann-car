@@ -57,16 +57,18 @@ def generate_launch_description():
         }.items()
     )
 
-    rviz_config = os.path.join(
-        get_package_share_directory('nav2_bringup'), 'rviz',
-        'nav2_default_view.rviz')
+    # 用本车专用视图：TF/RobotModel 只引用实际存在的帧，避免 TurtleBot 默认
+    # 视图里的 camera_link/caster_*/wheel_* 缺失帧报错。
+    rviz_config = os.path.join(pkg_path, 'rviz', 'nav2.rviz')
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
         name='rviz2',
-        arguments=['-d', rviz_config],
+        arguments=['-d', rviz_config, '-geometry', '1600x880+50+20'],
         parameters=[{'use_sim_time': True}],
         output='screen',
+        # VMware/SVGA 下硬件 GL 会让 3D 视口全黑；软件渲染慢但能显示地图/代价地图
+        additional_env={'LIBGL_ALWAYS_SOFTWARE': '1'},
         condition=IfCondition(rviz_enabled),
     )
 

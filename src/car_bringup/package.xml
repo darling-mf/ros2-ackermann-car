@@ -22,6 +22,12 @@
   <depend>ackermann_steering_controller</depend>
   <exec_depend>gazebo_ros2_control</exec_depend>
 
+  <!-- 自研插件/串口桥不在 ackermann 的依赖链里；不声明的话
+       colcon build 的 packages-up-to 不会编译它们，
+       启动时 spawner 会找不到 r5_steering_controller。 -->
+  <depend>r5_steering_controller</depend>
+  <exec_depend>r5_serial</exec_depend>
+
   <!-- 测试脚本用到的消息接口 -->
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>nav_msgs</exec_depend>

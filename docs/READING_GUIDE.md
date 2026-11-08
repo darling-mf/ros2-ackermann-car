@@ -2,7 +2,7 @@
 
 > 更新：2026-10-26。回答三件事：**截图里的文件在哪、按什么顺序读；
 > S4/S6 做了什么、怎么用；2D 雷达怎么选、轴距怎么定**。
-> 配套总账：根目录 `PROJECT_MAP.md`。
+> 配套总账：`docs/PROJECT_MAP.md`。
 
 ---
 
@@ -201,14 +201,14 @@ gcc -std=c99 -Wall -Wextra -Werror -I../src test_host.c \
 保留 / 新增：
 - **3D 雷达相关全部保留**（FAST_LIO / FAST-LIO-SAM-QN / livox_ros_driver2 / 3D xacro）；
 - `firmware/openctr_b20/`（S6 模块 + 文档）；`vendor/`（厂家源码/PDF，已提交）；
-- `patches/`（上游补丁）、`docs/READING_GUIDE.md`（本文）、`PROJECT_MAP.md`。
+- `patches/`（上游补丁）、`docs/READING_GUIDE.md`（本文）、`docs/PROJECT_MAP.md`。
 
 最终结构：
 
 ```
 car_ws/
 ├── README.md                 # 项目入口
-├── PROJECT_MAP.md            # 文件树 + 进度总账 + 命令速查
+├── docs/PROJECT_MAP.md       # 文件树 + 进度总账 + 命令速查
 ├── docs/READING_GUIDE.md     # 本文（阅读顺序/S4/S6/雷达/轴距）
 ├── patches/                  # ros2_controllers 补丁
 ├── firmware/openctr_b20/     # S6 固件模块（主机测试通过）

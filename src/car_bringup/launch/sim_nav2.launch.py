@@ -2,8 +2,8 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
-                            TimerAction)
+from launch.actions import (DeclareLaunchArgument, GroupAction,
+                            IncludeLaunchDescription, TimerAction)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
@@ -21,10 +21,16 @@ def generate_launch_description():
     declare_gui = DeclareLaunchArgument('gui', default_value='true')
     declare_rviz = DeclareLaunchArgument('rviz', default_value='true')
 
-    gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(pkg, 'launch',
-                                                  'gazebo.launch.py')),
-        launch_arguments={'gui': gui, 'rviz': 'false'}.items(),
+    # 同样要隔离 Gazebo 的 rviz:=false：IncludeLaunchDescription 的
+    # launch_arguments 会写进共享配置，否则会把下面 Nav2 的 rviz 也关掉。
+    gazebo = GroupAction(
+        actions=[IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(os.path.join(pkg, 'launch',
+                                                      'gazebo.launch.py')),
+            launch_arguments={'gui': gui, 'rviz': 'false'}.items(),
+        )],
+        scoped=True,
+        forwarding=True,
     )
 
     nav2 = TimerAction(

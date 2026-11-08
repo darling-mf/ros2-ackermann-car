@@ -5,7 +5,7 @@ find_package(ament_cmake REQUIRED)
 
 # 安装所有需要被 launch 加载的文件夹
 install(
-  DIRECTORY config launch maps
+  DIRECTORY config launch maps rviz
   DESTINATION share/${PROJECT_NAME}
 )
 
@@ -18,7 +18,7 @@ install(
 install(
   PROGRAMS scripts/drive_test.py scripts/plan_inspector.py scripts/acceptance_test.py
            scripts/path_tracker.py scripts/sensor_fusion.py scripts/fusion_test.py
-           scripts/cleanup_sim.sh
+           scripts/map_to_points.py scripts/cleanup_sim.sh
   DESTINATION lib/${PROJECT_NAME}
 )
 

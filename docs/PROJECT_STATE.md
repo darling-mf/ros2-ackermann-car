@@ -1,21 +1,22 @@
-# PROJECT_STATE —— 压缩记忆（2026-10-28）
+# PROJECT_STATE —— 压缩记忆（2026-11-08）
 
 > 用途：上下文丢失时，先读这一页。详细展开见文末索引。
 
 ## 一句话状态
 
-**仿真主链路完成约 80~85%**：控制/前向导航/建图/融合实验已验证；
-**倒车能执行但不稳**（3 连测仅 1 次 40s 内成功）；实车 S7/S8/S9 未开始。
+**仿真主链约 85%**：控制/前向导航/2D 建图/串口已验证；当前前进目标 (2.0,0) 成功、0 恢复；
+左房间目标仍 ABORTED（地图连通/长路径），动态障碍/窄通道/融合默认接入未完成；实车 S7/S8/S9 未开始。
 
 ## 已验证（有数据）
 
 | 模块 | 状态 | 证据 |
 |---|---|---|
 | 底盘执行 + R5 控制器 | ✅ | acceptance 三项 PASS；38 上游单测 |
-| Nav2 前向导航 | ✅ | 目标 (0.8,0) `SUCCEEDED`，车到 x≈0.68 |
-| Nav2 倒车 | ✅ 2/3 | 调参后：−0.8m **5s SUCCEEDED**(yaw 0.026)；−1.6m **6s SUCCEEDED**(yaw 0.194)；−2.4m 55s 超时（长距离需 BT 分段） |
-| 2D 建图 | ✅ | `mapping.launch.py`；`/map` 350×219@0.05；`map_saver_cli` 保存成功 |
+| Nav2 前向导航 | ✅ | 目标 (2.0,0) `SUCCEEDED`、0 次恢复；AMCL 误差 3–5cm |
+| Nav2 倒车 | 🟡 | 短距旧参数 2/3；当前慢倒车 −0.15 定位稳定，但左房间/长路径仍 ABORTED |
+| 2D 建图 | ✅ | `mapping.launch.py`；`/map` 376×222@0.05；`map_saver_cli` 保存成功 |
 | 传感器融合 | 🟡 | `fusion.launch.py` → `/odometry/fused` 正常；**未替换默认 `/odom`** |
+| 环境/RTF | ✅ | Gazebo/单套 Nav2 RTF≈0.99；残留进程清理后恢复 |
 | 串口桥 + 虚拟 STM32 | ✅ | 七项测试（坏帧/看门狗） |
 | STM32 固件 | 🟡 | 主机单测 5/5；实车待联调 |
 
@@ -89,6 +90,7 @@ ros2 run car_bringup path_tracker.py --tracker lqr --path line --offset 0.3
 
 - `docs/ENGINEERING_HANDOVER.md`：全栈分层/接口/改动指南（新人必读）
 - `docs/READING_GUIDE.md`：文件定位/阅读顺序/S4-S6 报告/雷达/轴距
+- `reports/NAV2_DEBUG_REPORT.md`：Nav2 闪烁/TF 报错/自击代价地图完整排查链
 - `PROJECT_MAP.md`：文件树 + 进度总账 + 命令
 - `src/r5_steering_controller/EXPERIMENT_LOG.md`：Round 1~16 排错逻辑链
 - `src/r5_steering_controller/STAGE1_GUIDE.md`：控制器逐行/预测表
