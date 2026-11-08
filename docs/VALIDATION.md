@@ -122,7 +122,9 @@ velocity_smoother:
 The initial 1.0 m/s run had about 16 cm AMCL error. The main cause was the AMCL
 update threshold: at 1.0 m/s, `update_min_d: 0.25` means an update only every
 0.25 s. Reducing it to 0.10 m and increasing `max_beams` to 90 reduced the
-steady-state error to about 5.4–5.5 cm.
+steady-state error to about 5–6 cm. After the geometry calibration and the
+fusion publish-rate fix, the measured values were 5.2 cm at 4 m and 6.0 cm at
+6 m.
 
 The speed chain must stay consistent:
 
