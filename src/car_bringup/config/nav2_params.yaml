@@ -164,7 +164,7 @@ controller_server:
 
       # 🔥 核心参数 2：阿克曼的物理约束（必须与规划器一致）
       AckermannConstraints:
-        min_turning_r: 0.35           # 与 Smac 的 minimum_turning_radius 一致
+        min_turning_r: 0.55           # R5 手册/实测最小转弯半径；与 Smac 一致
 
       # 速度限制（与你的 velocity_smoother 保持一致）
       vx_max: 1.0
@@ -327,7 +327,7 @@ planner_server:
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_smac_planner/SmacPlannerHybrid"
-      minimum_turning_radius: 0.35   # 前进掉头优先；固件值 0.35，实测最小约 0.287
+      minimum_turning_radius: 0.55   # R5 手册/实测；与 max_steering_angle 0.235 rad 一致
       motion_model_for_search: "REEDS_SHEPP"
       downsample_costmap: false
       angle_quantization_bins: 72

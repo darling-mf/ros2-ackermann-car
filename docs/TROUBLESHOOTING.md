@@ -191,8 +191,8 @@ acceleration limits must agree.
 
 | Goal | Result | AMCL vs ground truth |
 |---|---|---|
-| `(4.0, 0)` | `SUCCEEDED`, 8.2 s | 5.4 cm |
-| `(6.0, 0)` | `SUCCEEDED`, 4.7 s | 5.5 cm |
+| `(4.0, 0)` | `SUCCEEDED`, 8.0 s | 5.2 cm |
+| `(6.0, 0)` | `SUCCEEDED`, 4.8 s | 6.0 cm |
 
 A turning detour can still produce a larger transient error; compare final
 steady-state values after the vehicle stops.
@@ -236,7 +236,51 @@ or `DriveOnHeading` instead.
 - after reverse, a forward goal must still succeed. This was tested explicitly:
   reverse to about −0.8 m, then forward to +0.5 m, `SUCCEEDED` in 8 s.
 
-## 6. General Debug Order
+## 6. Fused odometry heading drifts while stationary
+
+**Symptom**
+
+The robot is stationary, but `/odom` slowly rotates and its `y` position drifts.
+AMCL then has to absorb the error, and the map pose looks worse than the wheel
+odometry.
+
+**Root cause**
+
+The gyro has a small bias. Integrating `angular_velocity.z` without estimating
+that bias accumulates heading error even when the robot is not moving. In the
+simulation test, the bias was large enough to rotate the fused frame by about
+18° over a long idle period.
+
+**Fix**
+
+`sensor_fusion.py` estimates the gyro bias from the first
+`gyro_bias_samples` stationary samples (default 100) and applies a small
+`gyro_deadband` (default 0.0005 rad/s):
+
+```python
+if not bias_ready and abs(v) < stationary_speed and abs(wz) < 0.05:
+    bias_sum += raw_wz
+    bias_count += 1
+    if bias_count >= bias_samples:
+        gyro_bias = bias_sum / bias_count
+        bias_ready = True
+```
+
+The robot must be stationary for about two seconds after startup. On the real
+robot, keep the chassis still during this window.
+
+**Verification**
+
+At rest, `/odom` should stay within a few centimeters of the origin and its yaw
+should stay near zero. With the calibration enabled, the simulation test
+measured less than 0.1 m of drift while parked.
+
+A second pitfall is publish rate: publishing fused `/odom` at IMU rate while
+copying a slower wheel-odom twist creates repeated values followed by jumps.
+Finite differences then report a false acceleration spike. Publish one fused
+sample per wheel-odom update (or interpolate the twist) instead.
+
+## 7. General Debug Order
 
 1. Data chain: `/clock`, `/scan`, `/odom`, `/tf`, `/cmd_vel` publisher counts.
 2. TF: `tf2_echo map base_footprint`; distinguish missing data from RViz display.
@@ -247,7 +291,7 @@ or `DriveOnHeading` instead.
 7. Controller: check `vx_min`, footprint, and MPPI critic configuration.
 8. Map: if a room fails consistently, rebuild the map before changing weights.
 
-## 7. Useful Commands
+## 8. Useful Commands
 
 ```bash
 # Nodes and topics

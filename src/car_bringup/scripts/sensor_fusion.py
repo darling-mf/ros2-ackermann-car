@@ -12,6 +12,9 @@
      必须弱（alpha 默认 0.999），零偏靠上车静置标定而不是靠强锚定；
   3. dt 必须用消息头（sim time）；墙钟在 RTF<1 时会让积分发散。
 
+静止时用前 100 个样本估计陀螺零偏并加死区；输出频率跟随轮式 odom，
+避免 IMU 高频重复轮速造成加速度差分尖峰。
+
 实机迁移：STM32 上传校准后的 ω_gyro + 轮速，本节点原样跑在树莓派；
 进阶则换 robot_localization EKF（原理相同、协方差更规范）。
 """
@@ -52,16 +55,28 @@ class SensorFusion(Node):
         self.declare_parameter('alpha', 0.999)
         self.declare_parameter('wheel_odom_topic', '/wheel/odom')
         self.declare_parameter('publish_tf', True)
+        self.declare_parameter('gyro_bias_samples', 100)
+        self.declare_parameter('gyro_deadband', 0.0005)
+        self.declare_parameter('stationary_speed', 0.01)
         self.alpha = self.get_parameter('alpha').get_parameter_value().double_value
         wheel_topic = self.get_parameter('wheel_odom_topic').get_parameter_value().string_value
         self.publish_tf = self.get_parameter('publish_tf').get_parameter_value().bool_value
+        self.bias_samples = self.get_parameter('gyro_bias_samples').get_parameter_value().integer_value
+        self.gyro_deadband = self.get_parameter('gyro_deadband').get_parameter_value().double_value
+        self.stationary_speed = self.get_parameter('stationary_speed').get_parameter_value().double_value
 
         self.odom = None
+        self.odom_stamp = None
+        self.last_pub_odom_stamp = None
         self.wz = 0.0
         self.last_imu_stamp = None     # sim time（消息头）
         self.yaw_f = None
         self.pos_f = None
         self.yaw_g = None              # 纯陀螺对照
+        self.gyro_bias = 0.0
+        self.bias_sum = 0.0
+        self.bias_count = 0
+        self.bias_ready = False
 
         self.create_subscription(Odometry, wheel_topic, self._odom, 20)
         self.create_subscription(Imu, '/imu', self._imu, 20)
@@ -72,6 +87,7 @@ class SensorFusion(Node):
 
     def _odom(self, m):
         self.odom = m
+        self.odom_stamp = m.header.stamp.sec + m.header.stamp.nanosec * 1e-9
 
     def _imu(self, m):
         stamp = m.header.stamp.sec + m.header.stamp.nanosec * 1e-9
@@ -93,18 +109,44 @@ class SensorFusion(Node):
         if not (0.0 < dt < 0.5):       # 乱序/长断流保护
             return
 
+        v = self.odom.twist.twist.linear.x
+        raw_wz = self.wz
+
+        # ---- 静止零偏估计：上电后前 N 个静止样本求平均 ----
+        # 仿真/实车 IMU 都有零偏；直接积分会让 /odom 航向缓慢漂移。
+        if (not self.bias_ready
+                and abs(v) < self.stationary_speed
+                and abs(raw_wz) < 0.05):
+            self.bias_sum += raw_wz
+            self.bias_count += 1
+            if self.bias_count >= self.bias_samples:
+                self.gyro_bias = self.bias_sum / self.bias_count
+                self.bias_ready = True
+                self.get_logger().info(
+                    f'gyro bias calibrated: {self.gyro_bias:+.6f} rad/s '
+                    f'({self.bias_count} stationary samples)')
+
+        wz = raw_wz - self.gyro_bias
+        if abs(wz) < self.gyro_deadband:
+            wz = 0.0
+
         # ---- 航向：陀螺积分为主 + 轮式弱锚定 ----
         self.yaw_f = wrap(
             self.yaw_f
-            + self.alpha * self.wz * dt
+            + self.alpha * wz * dt
             + (1.0 - self.alpha) * wrap(odom_yaw - self.yaw_f))
-        self.yaw_g = wrap(self.yaw_g + self.wz * dt)
+        self.yaw_g = wrap(self.yaw_g + wz * dt)
 
         # ---- 位置：轮速沿融合航向积分 ----
-        v = self.odom.twist.twist.linear.x
         x = self.pos_f[0] + v * math.cos(self.yaw_f) * dt
         y = self.pos_f[1] + v * math.sin(self.yaw_f) * dt
         self.pos_f = (x, y)
+
+        # 只在收到新的轮速 odom 时发布，避免 100 Hz IMU 重复复制 50 Hz
+        # 轮速造成加速度差分尖峰；TF 的频率仍足够 Nav2 使用。
+        if self.odom_stamp is None or self.odom_stamp == self.last_pub_odom_stamp:
+            return
+        self.last_pub_odom_stamp = self.odom_stamp
 
         fused = Odometry()
         fused.header.stamp = m.header.stamp

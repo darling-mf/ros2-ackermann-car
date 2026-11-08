@@ -60,9 +60,9 @@ typedef struct {
 } akm_cfg_t;
 ```
 
-Measure the real chassis before choosing values. The simulation uses a 0.146 m
-wheelbase and 0.160 m track; the vendor manual and firmware differ on some
-dimensions, so a tape measure and a full-lock circle test are required.
+The values used by the simulation and the host tests are the manual/measured
+geometry: 0.112 m wheelbase, 0.164 m track, 0.55 m minimum turning radius. The
+vendor firmware source contains different constants; do not copy them blindly.
 
 ## Protocol Summary
 

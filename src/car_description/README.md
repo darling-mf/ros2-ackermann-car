@@ -51,5 +51,6 @@ the model without starting Nav2:
 ros2 launch car_bringup gazebo.launch.py
 ```
 
-Dimensions in the xacro are simulation defaults. Measure wheelbase, track,
-wheel radius, and steering limits on the real chassis before hardware tests.
+Dimensions in the xacro match the R5 manual and the measured chassis:
+0.112 m wheelbase, 0.164 m track, 0.0325 m wheel radius. Re-measure after any
+mechanical change before hardware tests.

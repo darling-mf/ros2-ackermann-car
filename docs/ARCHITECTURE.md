@@ -69,9 +69,9 @@ Relevant parameters live in
 `src/car_bringup/config/controllers.yaml`:
 
 ```yaml
-wheelbase: 0.146
-front_wheel_track: 0.160
-rear_wheel_track: 0.160
+wheelbase: 0.112
+front_wheel_track: 0.164
+rear_wheel_track: 0.164
 front_wheels_radius: 0.0325
 rear_wheels_radius: 0.0325
 max_steering_angle: 0.235
@@ -81,11 +81,9 @@ r5.max_decel: 1.5
 r5.a_lat_max: 2.0
 ```
 
-The values are simulation defaults and must be re-measured on the real chassis.
-The URDF currently carries the drawing geometry (`0.112 m` wheelbase,
-`0.164 m` track), while `controllers.yaml` carries the firmware/controller
-values (`0.146 m`, `0.160 m`). This is a known calibration item: do not treat
-either set as final until the chassis is measured.
+These values come from the R5 manual and the physical chassis measurement:
+112 mm wheelbase, 164 mm track, 65 mm tire diameter. The URDF and
+`controllers.yaml` intentionally use the same set.
 
 ### 3.3 Odometry ownership
 
@@ -98,6 +96,11 @@ AMCL                    -> map -> odom
 There is exactly one `odom -> base_footprint` broadcaster. This is deliberate:
 two publishers create two TF trees, which makes AMCL and the costmaps jump.
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#1-duplicate-nav2-instances-and-two-tf-trees).
+
+`sensor_fusion.py` also estimates the gyro bias from the first 100 stationary
+samples and applies a small deadband. This prevents the fused heading from
+rotating while the robot is parked. Keep the robot still for about two seconds
+after startup so the bias estimate is valid.
 
 ## 4. Navigation Stack
 
@@ -122,13 +125,14 @@ planner_server:
     GridBased:
       plugin: nav2_smac_planner/SmacPlannerHybrid
       motion_model_for_search: REEDS_SHEPP
-      minimum_turning_radius: 0.35
+      minimum_turning_radius: 0.55
       reverse_penalty: 2.0
 ```
 
 The planner is allowed to reverse because the vehicle has a minimum turning
 radius and some goals are behind the current heading. Reverse motion is
-penalized so forward paths are preferred.
+penalized so forward paths are preferred. The 0.55 m radius matches the
+manual, the 0.235 rad steering limit, and the measured chassis.
 
 ### 4.3 Local control
 
@@ -137,7 +141,7 @@ penalized so forward paths are preferred.
 ```yaml
 motion_model: Ackermann
 AckermannConstraints:
-  min_turning_r: 0.35
+  min_turning_r: 0.55
 vx_max: 1.0
 vx_min: -0.15
 ```

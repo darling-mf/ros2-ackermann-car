@@ -17,9 +17,9 @@
 
 typedef struct
 {
-  float axle_base;      /* 轴距 H [m]，实测（固件 0.146 / 手册 0.112） */
-  float wheel_base;     /* 轮距 W [m]，实测（固件 0.160 / 手册 0.164） */
-  float min_radius;     /* 最小转弯半径 [m]，实测（固件 0.35 / 手册 0.55） */
+  float axle_base;      /* 轴距 H [m]：手册/实测 0.112 */
+  float wheel_base;     /* 轮距 W [m]：手册/实测 0.164 */
+  float min_radius;     /* 最小转弯半径 [m]：手册/实测 0.55 */
   float servo_gain;     /* 舵机角 = gain * 内轮角(deg) + offset */
   float servo_offset;   /* [deg]，含机械零位 */
 } akm_cfg_t;

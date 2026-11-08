@@ -82,20 +82,21 @@ static void test_safety(void)
 
 static void test_ackermann(void)
 {
-  akm_cfg_t cfg = {0.146f, 0.160f, 0.35f, 1.0f, 0.0f};
-  /* vx=0.3, wz=0.6 → R=0.5m；β=atan(0.146/0.5)=0.2843 rad */
-  int16_t beta_mrad = akm_w_to_beta_mrad(300, 600, &cfg);
+  /* Manual geometry: wheelbase 0.112 m, track 0.164 m, R_min 0.55 m. */
+  akm_cfg_t cfg = {0.112f, 0.164f, 0.55f, 1.0f, 0.0f};
+  /* vx=0.3, wz=0.5 -> R=0.6 m (above R_min); beta=atan(0.112/0.6)=0.1845 rad. */
+  int16_t beta_mrad = akm_w_to_beta_mrad(300, 500, &cfg);
   float beta = beta_mrad / 1000.0f;
-  assert(fabsf(beta - 0.2843f) < 0.002f);
+  assert(fabsf(beta - 0.1845f) < 0.002f);
 
-  /* 内轮角 = atan(0.146/(0.5-0.08)) = 0.3352 rad = 19.20 deg */
+  /* Inner wheel = atan(0.112/(0.6-0.082)) = 0.2133 rad = 12.20 deg. */
   float inner = akm_inner_wheel_deg(beta, &cfg);
-  assert(fabsf(inner - 19.2f) < 0.2f);
+  assert(fabsf(inner - 12.2f) < 0.2f);
 
-  /* 舵机指令（gain=1, offset=0）应为 192（0.1°） */
-  assert(abs(akm_servo_cmd_d10(inner, &cfg) - 192) <= 2);
+  /* Servo command (gain=1, offset=0) = 122 in 0.1 deg units. */
+  assert(abs(akm_servo_cmd_d10(inner, &cfg) - 122) <= 2);
 
-  /* 最小半径钳位：vx=1.0, wz=6.28 → R=0.159 < 0.35 → 钳到 0.35 */
+  /* R_min clamp: vx=1.0, wz=6.28 -> R=0.159 < 0.55 -> clamp to 0.55. */
   int16_t beta_lim = akm_w_to_beta_mrad(1000, 6280, &cfg);
   assert(beta_lim > 0 && beta_lim < 500);
   printf("PASS 阿克曼 β/内轮角/舵机指令/最小半径钳位\n");

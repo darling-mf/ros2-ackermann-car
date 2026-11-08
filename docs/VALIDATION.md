@@ -28,13 +28,14 @@ consume it.
 | Chassis | Direction, steering angle, wheel speed loop | PASS | `drive_test.py` |
 | Upstream controller | `steering_controllers_library` tests | 38 passed | `colcon test` |
 | Navigation | Goal `(2.0, 0)`, 0.3 m/s | `SUCCEEDED`, 0 recoveries | AMCL vs GT 3–5 cm |
-| Navigation | Goal `(4.0, 0)`, 1.0 m/s | `SUCCEEDED`, 8.2 s | AMCL error 5.4 cm |
-| Navigation | Goal `(6.0, 0)`, 1.0 m/s | `SUCCEEDED`, 4.7 s | AMCL error 5.5 cm |
+| Navigation | Goal `(4.0, 0)`, 1.0 m/s | `SUCCEEDED`, 8.0 s | localization error 5.2 cm |
+| Navigation | Goal `(6.0, 0)`, 1.0 m/s | `SUCCEEDED`, 4.8 s | localization error 6.0 cm |
 | Odometry | Wheel + IMU fusion as default `/odom` | PASS | one `/odom` publisher; one TF authority |
+| Odometry | Static gyro-bias calibration | PASS | 100 stationary samples; drift < 0.1 m at rest |
 | Mapping | `slam_toolbox` + `map_saver` | PASS | map 376 × 222 at 0.05 m |
-| Obstacle | Static cylinder at `(4.0, 0)`, goal `(6.0, 0)` | `SUCCEEDED`, 12 s, 0 recoveries | obstacle cost present in global costmap |
+| Obstacle | Static cylinder at `(4.0, 0)`, goal `(6.0, 0)` | `SUCCEEDED`, 12 s, 0 recoveries | localization error 6.7 cm |
 | Obstacle | Cylinder at `(6.5, 0)`, goal `(8.0, 0)` near wall | timeout at 60 s | goal inside inflated region |
-| Long path | Left-room goal `(-3.0, 0.5)` | ABORTED / timeout | 17.7 m raw, 18.1 m inflated shortest path |
+| Long path | Left room `(-3.0, 0.5)`, yaw −π/2 | `SUCCEEDED`, 54 s, 0 recoveries | map vs GT ≈ 19 cm; yaw-sensitive |
 | Serial | Example frame, round-trip, bad-frame resync | PASS | `python3 -m r5_serial.protocol` |
 | Serial | Virtual STM32 + bridge | PASS | pty integration run |
 | Firmware | Protocol, watchdog, Ackermann geometry | 5/5 | `firmware/openctr_b20/test/test_host.c` |
@@ -49,15 +50,18 @@ recovery count, and elapsed simulation time were read from the feedback/result.
 
 ### 3.2 Localization error
 
-AMCL is compared with Gazebo ground truth after the vehicle stops:
+The current map pose is read from `tf2_echo map base_footprint` and compared
+with Gazebo ground truth after the vehicle stops:
 
 ```text
-error_xy = norm(amcl_xy - ground_truth_xy)
+error_xy = norm(map_xy - ground_truth_xy)
 ```
 
-The reported values are the steady-state errors at the goal, not the maximum
-error during the run. During a turning detour the error can be higher; the
-obstacle scenario measured about 11.5 cm at the end of the maneuver.
+The map transform is used instead of the last `/amcl_pose` message because
+AMCL publishes a pose only when it updates; at rest the last message can be
+stale by one update interval. The reported values are steady-state errors, not
+the maximum error during the run. The obstacle detour measured about 6.7 cm at
+the end of the maneuver.
 
 ### 3.3 Costmap checks
 
@@ -85,9 +89,20 @@ ros2 run tf2_ros tf2_echo odom base_footprint
 A single `odom -> base_footprint` authority is required. The controller is
 configured with `enable_odom_tf: false`; it publishes `/wheel/odom` only.
 
+The fusion node estimates the gyro bias from the first 100 stationary IMU
+samples and applies a small deadband. Before this fix, a static Gazebo run
+drifted to about 18° of heading; after the fix, the fused pose stayed within
+0.1 m of the origin while stationary.
+
+The fused odometry is published once per wheel-odom update, not at the higher
+IMU rate. Publishing at IMU rate while holding the 50 Hz wheel twist caused
+duplicate samples and finite-difference acceleration spikes; the fix keeps
+`/odom` at the wheel-odom rate and still gives Nav2 enough TF updates.
+
 ## 4. High-Speed Result
 
-The 1.0 m/s configuration uses:
+The 1.0 m/s configuration uses the measured/manual geometry (0.112 m wheelbase,
+0.164 m track, 0.0325 m wheel radius) and:
 
 ```yaml
 # src/car_bringup/config/nav2_params.yaml
@@ -135,17 +150,18 @@ started together.
 ### 6.1 Left-room long path
 
 The shortest free path to `(-3.0, 0.5)` is 17.7 m; after 0.22 m inflation it is
-18.1 m. The straight line is blocked near `(-2.0, 0.34)`. Goal yaw changes the
-result significantly:
+18.1 m. The straight line is blocked near `(-2.0, 0.34)`. Goal yaw still
+changes the result:
 
 - yaw 0: a 15–16 m loop, still running after 110 s;
-- yaw π: reaches the room but ends at yaw ≈ −1.37, outside the 0.8 rad tolerance;
-- yaw −π/2: succeeds from a nearby start, but a full run from the origin still
-  times out.
+- yaw π: reaches the room but ends outside the 0.8 rad tolerance;
+- yaw −π/2: after the geometry calibration, a full run from the origin
+  **SUCCEEDED in 54 s with 0 recoveries**.
 
-This is a map/path/goal-orientation problem, not a controller failure. The
-intended fix is segmented waypoints or a behavior tree with a feasible final
-yaw, not further MPPI weight tuning.
+The yaw −π/2 result is a real pass, but the 19 cm map-vs-ground-truth error is
+close to the 20 cm goal tolerance, and the path remains yaw-sensitive. Use a
+feasible final yaw and, for production, segmented waypoints or a behavior tree
+rather than one long goal.
 
 ### 6.2 Near-wall goals
 
@@ -161,15 +177,15 @@ cylinder; it does not test a moving person, sensor latency, or prediction.
 
 ### 6.4 Real vehicle
 
-No real-vehicle navigation result is claimed. The hardware interface, wheel
-radius/track calibration, IMU bias calibration, and emergency-stop integration
-remain. Simulation values are a baseline, not a calibration certificate.
+No real-vehicle navigation result is claimed. The hardware interface, IMU
+bias calibration, and emergency-stop integration remain. The geometry values
+are from the manual and the measured chassis, but simulation is still a
+baseline, not a calibration certificate.
 
-The repository currently contains two provisional geometry sets: the URDF uses
-the drawing dimensions (`0.112 m` wheelbase, `0.164 m` track), while
-`controllers.yaml` uses the firmware/controller dimensions (`0.146 m`,
-`0.160 m`). This mismatch is a known calibration item and must be resolved before
-real-vehicle navigation.
+The URDF, `controllers.yaml`, Nav2 parameters, and firmware host tests now use
+one measured geometry set: 0.112 m wheelbase, 0.164 m track, 0.0325 m wheel
+radius, and 0.55 m minimum turning radius. The vendor firmware constants
+(0.146/0.160/0.35) are not used.
 
 ## 7. Reproduce
 

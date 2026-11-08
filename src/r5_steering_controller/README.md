@@ -35,9 +35,9 @@ The controller is configured in
 ```yaml
 r5_steering_controller:
   ros__parameters:
-    wheelbase: 0.146
-    front_wheel_track: 0.160
-    rear_wheel_track: 0.160
+    wheelbase: 0.112
+    front_wheel_track: 0.164
+    rear_wheel_track: 0.164
     front_wheels_radius: 0.0325
     rear_wheels_radius: 0.0325
 
@@ -50,8 +50,9 @@ r5_steering_controller:
     r5.speed_dependent_limit: true
 ```
 
-Geometry and limits are simulation defaults. Measure the real chassis before
-using these values on hardware.
+Geometry values match the R5 manual and the measured chassis: 112 mm wheelbase,
+164 mm track, 65 mm tire diameter, 0.55 m minimum turning radius. Re-measure
+after any mechanical change to the chassis.
 
 ## Build
 

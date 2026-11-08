@@ -31,7 +31,6 @@ from r5_serial.protocol import (
     FrameParser, pack_frame, ID_UTX_DATA, UTX_FIELDS,
     GYRO_SCALE_DPS, ACC_SCALE_G, R_VX_LIMIT, R_VW_LIMIT)
 
-WHEEL_TRACK = 0.160   # 固件 ax_robot.h AKM_WHEEL_BASE
 TAU = 0.15            # 速度一阶惯性时间常数（模拟电机+PID 响应）
 
 

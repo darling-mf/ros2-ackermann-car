@@ -30,11 +30,18 @@ Key relationships:
 - `controllers.yaml` sets `enable_odom_tf: false`; `sensor_fusion.py` is the
   only `odom -> base_footprint` broadcaster.
 - `nav2_params.yaml` uses `SmacPlannerHybrid` with `REEDS_SHEPP`,
-  `minimum_turning_radius: 0.35`, and `MPPI` with `motion_model: Ackermann`.
+  `minimum_turning_radius: 0.55`, and `MPPI` with `motion_model: Ackermann`.
 - The MPPI `vx_max`, `velocity_smoother.max_velocity`, and controller
   acceleration limits are a single speed chain and must be changed together.
 - AMCL uses `max_beams: 90`, `update_min_d: 0.10`, and `update_min_a: 0.10`
   for the 1.0 m/s configuration.
+- `sensor_fusion.py` estimates the gyro bias from 100 stationary samples and
+  applies a deadband; keep the robot still for about two seconds after startup.
+- Fused `/odom` is published once per wheel-odom update. Do not publish it at
+  the higher IMU rate with a held wheel twist; finite differences produce a
+  false acceleration spike.
+- Geometry is the measured R5 set: 0.112 m wheelbase, 0.164 m track, 0.0325 m
+  wheel radius, 0.55 m minimum turning radius.
 
 ## Scripts
 

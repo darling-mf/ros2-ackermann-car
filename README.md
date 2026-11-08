@@ -33,15 +33,16 @@ All numbers below are from the Gazebo simulation with the map in
 |---|---|---|
 | Controller acceptance | PASS | `acceptance_test.py` (straight, turn, reverse) |
 | Forward goal `(2.0, 0)` | `SUCCEEDED`, 0 recoveries | AMCL vs ground truth: 3–5 cm |
-| High-speed `(4.0, 0)` at 1.0 m/s | `SUCCEEDED`, 8.2 s | AMCL error ≈ 5.4 cm |
-| High-speed `(6.0, 0)` at 1.0 m/s | `SUCCEEDED`, 4.7 s | AMCL error ≈ 5.5 cm |
-| Obstacle at `(4.0, 0)`, goal `(6.0, 0)` | `SUCCEEDED`, 12 s, 0 recoveries | Static cylinder; costmap shows obstacle at 4.0 m |
+| High-speed `(4.0, 0)` at 1.0 m/s | `SUCCEEDED`, 8.0 s | localization error ≈ 5.2 cm |
+| High-speed `(6.0, 0)` at 1.0 m/s | `SUCCEEDED`, 4.8 s | localization error ≈ 6.0 cm |
+| Obstacle at `(4.0, 0)`, goal `(6.0, 0)` | `SUCCEEDED`, 12 s, 0 recoveries | static cylinder; localization error ≈ 6.7 cm |
+| Left room `(-3.0, 0.5)`, yaw −π/2 | `SUCCEEDED`, 54 s, 0 recoveries | map vs GT ≈ 19 cm; yaw-sensitive |
 | 2D mapping | map saved | 376 × 222 cells at 0.05 m |
 | Serial bridge + virtual STM32 | protocol self-checks + virtual-device run | example frame, round-trip, bad-frame resync |
 | STM32 C modules | 5/5 host tests | `firmware/openctr_b20/test/test_host.c` |
 
 Known limitations are listed in [docs/VALIDATION.md](docs/VALIDATION.md):
-long paths into the left room still time out, near-wall goals can be
+left-room navigation is still yaw-sensitive, near-wall goals can be
 unreachable, and narrow-passage stress tests are not complete.
 
 ## System Architecture
@@ -194,7 +195,8 @@ mapping, and the tracker, run `ros2 run car_bringup cleanup_sim.sh` first.
   high speed the command is limited before it reaches the servo model.
 - **One TF owner.** Enabling `enable_odom_tf` in both the controller and the
   fusion node creates two `odom -> base_footprint` authorities. The controller
-  is configured to publish `/wheel/odom` only.
+  is configured to publish `/wheel/odom` only. The fusion node also estimates
+  the stationary gyro bias so the fused heading does not drift while parked.
 - **No in-place spin.** An Ackermann chassis cannot rotate at zero speed. The
   custom behavior tree removes `Spin` and uses bounded `BackUp` /
   `DriveOnHeading` recovery instead.
@@ -205,8 +207,8 @@ mapping, and the tracker, run `ros2 run car_bringup cleanup_sim.sh` first.
 
 - Simulation: control, forward navigation, 1.0 m/s navigation, 2D mapping,
   fused odometry, and serial protocol are validated.
-- Open simulation work: long-path navigation into the left room, near-wall
-  goal handling, narrow passages, and moving-obstacle prediction.
+- Open simulation work: left-room paths with arbitrary yaw (yaw=0 still loops),
+  near-wall goal handling, narrow passages, and moving-obstacle prediction.
 - Real vehicle: hardware interface, wheel/IMU calibration, and full integration
   remain. The current repository is a simulation-validated baseline, not a
   finished product.
