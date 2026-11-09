@@ -1,36 +1,33 @@
 # r5_steering_controller
 
-A `ros2_control` controller for a rear-drive / front-steer Ackermann chassis.
-It extends the upstream `ackermann_steering_controller` with three limits that
-the upstream controller does not provide.
+面向后轮驱动、前轮转向阿克曼底盘的 `ros2_control` 控制器。它在上游
+`ackermann_steering_controller` 基础上增加了三类上游没有的限幅。
 
-## Features
+## 功能
 
-| Feature | Why it exists |
+| 功能 | 存在原因 |
 |---|---|
-| Acceleration / deceleration ramp | Protects the motor driver and current budget; prevents launch wheel slip |
-| Speed-dependent steering limit | Bounds lateral acceleration `a_y = v^2 * tan(phi) / L` to avoid high-speed side slip |
-| Steering-rate limit | Respects the steering servo's maximum rate (about 9.5 rad/s) |
-| Mechanical steering clamp | Upstream has no physical steering-angle limit; the R5 single-wheel limit is 0.235 rad |
+| 加速度/减速度斜坡 | 保护电机驱动和电流预算，避免起步打滑 |
+| 速度相关转向限幅 | 约束侧向加速度 `a_y = v^2 * tan(phi) / L`，防止高速侧滑 |
+| 转向速率限幅 | 遵守舵机最大速度（约 9.5 rad/s） |
+| 机械转角钳位 | 上游没有物理转角限制；R5 单前轮限位 0.235 rad |
 
-The command post-processing runs in `update()` after the parent controller has
-written its reference interfaces. This is required because the parent
-overwrites those interfaces every control cycle.
+命令后处理放在 `update()` 里，在父控制器写完 reference 接口之后执行。
+父类每个控制周期都会覆盖这些接口，所以必须放在这个位置。
 
-## Files
+## 文件
 
-| File | Purpose |
+| 文件 | 用途 |
 |---|---|
-| `src/r5_steering_controller.cpp` | Controller implementation and limit layer |
-| `include/r5_steering_controller/r5_steering_controller.hpp` | Class declaration |
-| `r5_steering_controller.xml` | pluginlib export |
-| `CMakeLists.txt` | Build and install rules |
-| `../patches/ros2_controllers-r5.patch` | Upstream changes required by this controller |
+| `src/r5_steering_controller.cpp` | 控制器实现和限幅层 |
+| `include/r5_steering_controller/r5_steering_controller.hpp` | 类声明 |
+| `r5_steering_controller.xml` | pluginlib 导出 |
+| `CMakeLists.txt` | 构建和安装规则 |
+| `../patches/ros2_controllers-r5.patch` | 本控制器依赖的上游修改 |
 
-## Configuration
+## 配置
 
-The controller is configured in
-`src/car_bringup/config/controllers.yaml`:
+控制器参数在 `src/car_bringup/config/controllers.yaml`：
 
 ```yaml
 r5_steering_controller:
@@ -50,15 +47,13 @@ r5_steering_controller:
     r5.speed_dependent_limit: true
 ```
 
-Geometry values match the R5 manual and the measured chassis: 112 mm wheelbase,
-164 mm track, 65 mm tire diameter, 0.55 m minimum turning radius. Re-measure
-after any mechanical change to the chassis.
+几何参数与 R5 手册和实车实测一致：轴距 112 mm、轮距 164 mm、轮胎直径
+65 mm、最小转弯半径 0.55 m。底盘机械结构有改动后要重新测量。
 
-## Build
+## 构建
 
-The controller depends on the patched upstream sources. See
-[patches/README.md](../../patches/README.md) for the upstream commit and apply
-steps.
+控制器依赖打过补丁的上游源码。上游 commit 和应用步骤见
+[patches/README.md](../../patches/README.md)。
 
 ```bash
 cd ~/car_ws
@@ -67,19 +62,19 @@ colcon build --symlink-install --packages-up-to car_bringup
 source install/setup.bash
 ```
 
-## Verification
+## 验证
 
 ```bash
-# Controller acceptance: straight, turn, reverse
+# 控制器验收：直行、转向、倒车
 ros2 run car_bringup acceptance_test.py --vx 0.5
 
-# Direction / steering / wheel-speed loop
+# 方向 / 转角 / 轮速闭环
 ros2 run car_bringup drive_test.py --vx 0.1 --wz 0.3
 
-# Upstream controller tests
+# 上游控制器测试
 colcon test --packages-select steering_controllers_library
 colcon test-result --verbose
 ```
 
-The controller publishes `/wheel/odom`; TF is owned by `sensor_fusion.py` in
-`car_bringup`. Do not enable `enable_odom_tf` here while fusion is running.
+控制器发布 `/wheel/odom`；TF 由 `car_bringup` 里的 `sensor_fusion.py` 负责。
+融合节点运行时，不要在这里打开 `enable_odom_tf`。

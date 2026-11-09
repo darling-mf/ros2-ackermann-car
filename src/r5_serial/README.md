@@ -1,71 +1,69 @@
 # r5_serial
 
-ROS 2 bridge between `/cmd_vel` and an OpenCTR B20 lower controller using the
-X-Protocol over UART, plus a virtual STM32 for hardware-free integration tests.
+通过 UART 上的 X-Protocol，把 `/cmd_vel` 转到 OpenCTR B20 下位机的 ROS 2
+串口桥，并提供虚拟 STM32 用于无硬件联调。
 
-## Protocol
+## 协议
 
-| Item | Value |
+| 项目 | 值 |
 |---|---|
-| Frame | `AA 55 LEN ID DATA CHECK` |
-| Baud rate | 230400, 8N1 |
-| STM32 -> ROS | `0x10` combined frame (IMU, wheel speed, voltage) at 50 Hz |
-| ROS -> STM32 | `0x50` velocity frame (`vx`, `vy`, `wz`, m/s × 1000, big-endian) |
-| Steering angle | `0x60`; `0x51` / `0x5F` exist in older firmware and are not implemented on B20 |
+| 帧格式 | `AA 55 LEN ID DATA CHECK` |
+| 波特率 | 230400，8N1 |
+| STM32 -> ROS | `0x10` 综合帧（IMU、轮速、电压），50 Hz |
+| ROS -> STM32 | `0x50` 速度帧（`vx`、`vy`、`wz`，m/s × 1000，大端） |
+| 转角 | `0x60`；`0x51` / `0x5F` 属于旧固件，B20 未实现 |
 
-The protocol constants are in `r5_serial/protocol.py`; the frame parser is a
-resynchronizing state machine that rejects bad length/checksum frames.
+协议常量在 `r5_serial/protocol.py`；帧解析器是带重同步的状态机，会拒绝
+长度或校验和错误的帧。
 
-## Components
+## 组成
 
-| File | Purpose |
+| 文件 | 用途 |
 |---|---|
-| `r5_serial/protocol.py` | Frame builder/parser, `0x10` decoding, `0x50` encoding |
-| `r5_serial/serial_port.py` | Serial port abstraction |
-| `r5_serial/serial_bridge.py` | ROS node: `/cmd_vel` -> UART, UART -> `/r5/imu_raw`, `/r5/wheel_vel`, `/r5/battery` |
-| `r5_serial/virtual_stm32.py` | Virtual STM32 over a pty; useful without hardware |
+| `r5_serial/protocol.py` | 帧打包/解析、`0x10` 解码、`0x50` 编码 |
+| `r5_serial/serial_port.py` | 串口抽象 |
+| `r5_serial/serial_bridge.py` | ROS 节点：`/cmd_vel` -> UART，UART -> `/r5/imu_raw`、`/r5/wheel_vel`、`/r5/battery` |
+| `r5_serial/virtual_stm32.py` | 基于 pty 的虚拟 STM32，无硬件时使用 |
 
-The bridge has a host-side watchdog: if `/cmd_vel` stops for `watchdog` seconds
-(default 0.5 s), it sends a zero-velocity frame. This is an upper-computer
-fallback; the lower controller should also implement its own command timeout.
+串口桥有上位机看门狗：`/cmd_vel` 断流超过 `watchdog` 秒（默认 0.5 s）时，
+会发送零速帧。这只是上位机兜底；下位机也应该实现自己的指令超时。
 
-## Usage
+## 使用
 
 ```bash
-# Terminal 1: create a virtual serial device
+# 终端 1：创建虚拟串口
 ros2 run r5_serial virtual_stm32
-# Note the printed /dev/pts/N
+# 记下打印的 /dev/pts/N
 
-# Terminal 2: bridge
+# 终端 2：启动串口桥
 ros2 run r5_serial serial_bridge --port /dev/pts/N
 
-# Terminal 3: drive
+# 终端 3：遥控
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
-Relevant parameters:
+相关参数：
 
-| Parameter | Default | Meaning |
+| 参数 | 默认值 | 含义 |
 |---|---|---|
-| `port` | empty (required) | Serial device, passed as `--port` |
-| `baud` | `230400` | Baud rate |
-| `watchdog` | `0.5` | Zero-velocity timeout [s] |
-| `send_imu` | `true` | Publish decoded IMU data |
+| `port` | 空（必填） | 串口设备，通过 `--port` 传入 |
+| `baud` | `230400` | 波特率 |
+| `watchdog` | `0.5` | 零速超时 [s] |
+| `send_imu` | `true` | 是否发布解码后的 IMU 数据 |
 
-The `0x50` send rate is a fixed 50 Hz (`CMD_RATE` in `serial_bridge.py`), aligned
-with the firmware control task.
+`0x50` 固定 50 Hz 发送（`serial_bridge.py` 中的 `CMD_RATE`），与固件控制
+任务对齐。
 
-## Tests
+## 测试
 
-The protocol module has a self-test for the documented example frame, a
-`0x10` pack/parse round-trip, and bad-checksum resynchronization:
+协议模块自带示例帧、`0x10` 打包/解析回环和坏校验重同步测试：
 
 ```bash
 cd src/r5_serial
 python3 -m r5_serial.protocol
 ```
 
-For the serial bridge, start `virtual_stm32`, note the printed `/dev/pts/N`,
-and run `serial_bridge --port /dev/pts/N`; a teleop publisher then exercises the
-`/cmd_vel` -> `0x50` -> `/r5/imu_raw`/`/r5/wheel_vel` path. The companion C
-implementation is in `firmware/openctr_b20/`.
+串口桥联调：启动 `virtual_stm32`，记下打印的 `/dev/pts/N`，再运行
+`serial_bridge --port /dev/pts/N`。用 teleop 发布 `/cmd_vel`，即可验证
+`/cmd_vel` -> `0x50` -> `/r5/imu_raw`/`/r5/wheel_vel` 链路。对应的 C 实现
+在 `firmware/openctr_b20/`。

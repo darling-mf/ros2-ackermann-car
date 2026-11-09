@@ -4,7 +4,7 @@
   <name>car_description</name>
   <version>0.0.0</version>
   <description>
-    URDF/xacro, Gazebo world, and RViz assets for the R5 Ackermann platform.
+    R5 阿克曼平台的 URDF/xacro、Gazebo 世界和 RViz 资源。
   </description>
   <maintainer email="darling@ros.com">mjf</maintainer>
   <license>Apache-2.0</license>

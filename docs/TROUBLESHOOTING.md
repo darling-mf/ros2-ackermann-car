@@ -1,19 +1,19 @@
-# Troubleshooting
+# 排障手册
 
-Four issues that are easy to misdiagnose on an Ackermann Nav2 stack. Each case
-lists the symptom, the evidence to collect first, the root cause, the fix, and
-the verification. Commands assume `source install/setup.bash`.
+下面几类问题在阿克曼 Nav2 栈里很容易误判。每个案例都按“现象 → 先收集什么
+证据 → 根因 → 修复 → 验证”组织。命令默认已经执行
+`source install/setup.bash`。
 
-## 1. Duplicate Nav2 instances and two TF trees
+## 1. 重复启动 Nav2，导致两棵 TF 树
 
-**Symptom**
+**现象**
 
-- RViz shows `No transform from [base_footprint] to [map]`;
-- `Send goal call failed`, or a goal is accepted but never makes progress;
-- the robot moves in one run and jumps/flickers in the next;
-- `/odom`, `/scan`, or `/cmd_vel` has more than one publisher.
+- RViz 报 `No transform from [base_footprint] to [map]`；
+- `Send goal call failed`，或者目标被接受但车一直不动；
+- 同一条路径这次能走、下次闪烁或跳变；
+- `/odom`、`/scan` 或 `/cmd_vel` 出现多个发布者。
 
-**Collect first**
+**先收集证据**
 
 ```bash
 ros2 node list | grep -E "amcl|bt_navigator|controller_server|planner_server"
@@ -22,69 +22,64 @@ ros2 topic info /odom -v
 ros2 run tf2_ros tf2_monitor map base_footprint
 ```
 
-Each node name should appear once. `tf2_monitor` should show one authority for
-each transform, not two.
+每个节点名应该只出现一次；`tf2_monitor` 中每个变换应该只有一个 authority。
 
-**Root cause**
+**根因**
 
-Launching Nav2 twice (for example `sim_nav2.launch.py` and a separate
-`nav2.launch.py`) starts two AMCL/controller containers. They compete for TF
-and `/cmd_vel`; AMCL also publishes two different `map -> odom` corrections.
-A crashed container can be left behind even after the launch terminal is
-closed.
+同时启动两套 Nav2（例如 `sim_nav2.launch.py` 之外又起了一个
+`nav2.launch.py`）会有两个 AMCL/控制器容器。它们抢 TF 和 `/cmd_vel`，
+AMCL 还会发布两套不同的 `map -> odom` 修正。即使关闭了 launch 终端，
+崩溃的容器也可能残留。
 
-**Fix**
+**修复**
 
 ```bash
 ros2 run car_bringup cleanup_sim.sh
 ros2 node list | grep -E "amcl|bt_navigator|controller_server" || echo clean
 ```
 
-Start exactly one stack:
+只启动一套：
 
 ```bash
 ros2 launch car_bringup sim_nav2.launch.py
 ```
 
-`src/car_bringup/scripts/cleanup_sim.sh` stops Gazebo, Nav2 containers, RViz,
-mapping, and fusion processes. It must be run as its own command, not in the
-same shell line as a launch command.
+`src/car_bringup/scripts/cleanup_sim.sh` 会清理 Gazebo、Nav2 容器、RViz、
+建图和融合进程。它必须单独执行，不要和 launch 命令写在同一行。
 
-**Verification**
+**验证**
 
 ```bash
-ros2 topic info /odom -v      # one publisher: sensor_fusion
+ros2 topic info /odom -v      # 只应有一个 sensor_fusion
 ros2 run tf2_ros tf2_echo map base_footprint
 ```
 
-Then send a short forward goal. A clean stack should reach it without recovery
-and without TF warnings.
+然后发一个短距离前进目标。干净的栈应该无恢复、无 TF 警告地到点。
 
-## 2. LiDAR sees the robot itself
+## 2. 激光雷达扫到车体自身
 
-**Symptom**
+**现象**
 
-- the robot stops or refuses to move even in open space;
-- RViz shows a ring of points inside the footprint;
-- the local costmap has lethal/inflated cells at the robot center.
+- 空旷区域车也不走，或者走一下就停；
+- RViz 在 footprint 内部出现一圈点；
+- 局部代价地图在机器人中心出现 lethal/inflated 栅格。
 
-**Evidence**
+**证据**
 
-A raw `/scan` check found 148 of 360 beams below 0.35 m, with the nearest at
-0.100 m, concentrated around the front wheels and rear body. Those points were
-inflated into the robot center, so every MPPI trajectory looked colliding.
+原始 `/scan` 检查发现 360 束里有 148 束小于 0.35 m，最近 0.100 m，集中在
+前轮和后车体附近。这些点被膨胀到机器人中心，导致 MPPI 的每条轨迹都像在
+碰撞。
 
-**Root cause**
+**根因**
 
-The LiDAR is mounted where it can see the steering mechanism and chassis.
-`footprint_clearing` alone is not sufficient: it clears cells inside the
-footprint after marking, but points on the footprint boundary can still be
-inflated into the center.
+激光雷达安装位置能扫到转向机构和车体。只开 `footprint_clearing` 不够：
+它会清理 footprint 内部已标记的栅格，但位于 footprint 边界上的点仍可能被
+膨胀到中心。
 
-**Fix**
+**修复**
 
-In `src/car_bringup/config/nav2_params.yaml`, both costmaps and AMCL ignore
-returns inside the footprint:
+在 `src/car_bringup/config/nav2_params.yaml` 中，让两个代价地图和 AMCL
+都忽略车体内部的回波：
 
 ```yaml
 amcl:
@@ -109,34 +104,32 @@ global_costmap:
           obstacle_min_range: 0.25
 ```
 
-The raw sensor `range_min` can stay at 0.1 m; only the consumers ignore the
-self-returns. 0.25 m is larger than the footprint half-diagonal
-(`sqrt(0.14^2 + 0.11^2) ≈ 0.178 m`) and still detects real obstacles outside
-the body.
+原始传感器的 `range_min` 可以保持 0.1 m，只让消费端忽略自击点。0.25 m 大于
+footprint 半对角线（`sqrt(0.14^2 + 0.11^2) ≈ 0.178 m`），同时仍能检测车体
+外部的真实障碍。
 
-**Verification**
+**验证**
 
-Read the costmap cell at the robot center. It should be `0` (free), not `254`
-(lethal) or `253` (inscribed). The raw `/scan` may still show self-hits; that is
-acceptable if they are filtered before reaching the costmap.
+读取机器人中心所在的代价地图栅格。它应该是 `0`（free），不是 `254`
+（lethal）或 `253`（inscribed）。原始 `/scan` 仍可能显示自击点，只要在进入
+代价地图前被过滤掉即可。
 
-## 3. MPPI configure crash with `consider_footprint`
+## 3. MPPI 因 `consider_footprint` 配置崩溃
 
-**Symptom**
+**现象**
 
-`controller_server` crashes during configure/startup when
-`CostCritic.consider_footprint: true` is enabled.
+`CostCritic.consider_footprint: true` 时，`controller_server` 在
+configure/启动阶段崩溃。
 
-**Root cause**
+**根因**
 
-`CostCritic` requires a costmap footprint. If the costmap is configured with
-only `robot_radius` and no `footprint`, the critic receives an empty polygon and
-the process can segfault.
+`CostCritic` 需要代价地图 footprint。如果代价地图只配置了 `robot_radius`，
+没有 `footprint`，critic 拿到空多边形，进程可能段错误。
 
-**Fix**
+**修复**
 
-Define one rectangular footprint in `src/car_bringup/config/nav2_params.yaml`
-and use it in both costmaps:
+在 `src/car_bringup/config/nav2_params.yaml` 定义一个矩形 footprint，并让
+两个代价地图都使用它：
 
 ```yaml
 local_costmap:
@@ -145,35 +138,33 @@ local_costmap:
       footprint: "[[-0.14,-0.11],[-0.14,0.11],[0.14,0.11],[0.14,-0.11]]"
 ```
 
-Keep the same polygon in the global costmap. The exact dimensions must be
-measured on the real chassis.
+全局代价地图保持同一个多边形。尺寸必须按实车测量。
 
-**Verification**
+**验证**
 
 ```bash
 ros2 node list | grep controller_server
 ros2 param get /controller_server FollowPath.CostCritic.consider_footprint
 ```
 
-The controller should stay alive and load the CostCritic plugin.
+控制器应保持存活，并成功加载 CostCritic 插件。
 
-## 4. AMCL lags at 1.0 m/s
+## 4. 1.0 m/s 时 AMCL 滞后
 
-**Symptom**
+**现象**
 
-The robot reaches the goal but AMCL drifts 10–16 cm from the Gazebo ground
-truth at 1.0 m/s. At 0.3 m/s the same map and controller are accurate.
+1.0 m/s 时车能到目标，但 AMCL 与 Gazebo 真值偏差 10–16 cm；同样地图和
+控制器在 0.3 m/s 时是准的。
 
-**Root cause**
+**根因**
 
-AMCL updates only after the robot has moved `update_min_d` or rotated
-`update_min_a`. With the default `0.25 m / 0.2 rad`, a 1.0 m/s vehicle gets an
-update every 0.25 s, so the filter is always behind the motion. The 60-beam
-scan is also sparse for high-speed correction.
+AMCL 只有在移动超过 `update_min_d` 或旋转超过 `update_min_a` 时才更新。
+默认 `0.25 m / 0.2 rad` 下，1.0 m/s 的车每 0.25 s 才更新一次，滤波器
+永远落后于运动；60 束激光对高速修正也偏稀。
 
-**Fix**
+**修复**
 
-In `src/car_bringup/config/nav2_params.yaml`:
+在 `src/car_bringup/config/nav2_params.yaml`：
 
 ```yaml
 amcl:
@@ -183,37 +174,33 @@ amcl:
     update_min_a: 0.10
 ```
 
-Keep `vx_min: -0.15` for reverse. At 1.0 m/s, also make the speed chain
-consistent: MPPI `vx_max`, `velocity_smoother.max_velocity`, and the controller
-acceleration limits must agree.
+倒车仍保持 `vx_min: -0.15`。1.0 m/s 时同时确认速度链一致：MPPI 的
+`vx_max`、`velocity_smoother.max_velocity` 和控制器加减速度限制要匹配。
 
-**Verification**
+**验证**
 
-| Goal | Result | AMCL vs ground truth |
+| 目标 | 结果 | 定位误差 |
 |---|---|---|
-| `(4.0, 0)` | `SUCCEEDED`, 8.0 s | 5.2 cm |
-| `(6.0, 0)` | `SUCCEEDED`, 4.8 s | 6.0 cm |
+| `(4.0, 0)` | 成功，8.0 s | 5.2 cm |
+| `(6.0, 0)` | 成功，4.8 s | 6.0 cm |
 
-A turning detour can still produce a larger transient error; compare final
-steady-state values after the vehicle stops.
+转弯绕行仍可能产生更大的瞬态误差；应在车辆停稳后比较稳态值。
 
-## 5. Reverse motion diverges odometry and AMCL
+## 5. 倒车导致里程计和 AMCL 发散
 
-**Symptom**
+**现象**
 
-A goal behind the robot causes a large AMCL jump: odometry error grows from
-centimeters to nearly a meter, and the particle cloud saturates.
+目标在车后时 AMCL 大幅跳变：里程计误差从厘米级涨到接近 1 m，粒子云饱和。
 
-**Root cause**
+**根因**
 
-The previous configuration allowed `vx_min: -0.4` and a long reverse arc.
-Wheel odometry under reverse slip, combined with a large `map -> odom`
-correction, produced a feedback loop. The planner also generated a long loop
-with pure Dubin primitives.
+旧配置允许 `vx_min: -0.4` 和长距离倒车弧线。倒车打滑时的轮式里程计误差
+叠加较大的 `map -> odom` 修正，形成反馈回路。规划器还会用纯 Dubin 基元
+生成很长的大环。
 
-**Fix**
+**修复**
 
-Use Reeds-Shepp planning, penalize reverse, and limit reverse speed:
+使用 Reeds-Shepp、惩罚倒车，并限制倒车速度：
 
 ```yaml
 planner_server:
@@ -226,36 +213,32 @@ controller_server:
     vx_min: -0.15
 ```
 
-Remove in-place `Spin` from the Ackermann behavior tree; use bounded `BackUp`
-or `DriveOnHeading` instead.
+阿克曼行为树去掉原地 `Spin`，改用有界的 `BackUp` 或
+`DriveOnHeading`。
 
-**Verification**
+**验证**
 
-- short reverse goals should finish without an AMCL jump;
-- `/odom` and `/ground_truth` should stay within the expected drift;
-- after reverse, a forward goal must still succeed. This was tested explicitly:
-  reverse to about −0.8 m, then forward to +0.5 m, `SUCCEEDED` in 8 s.
+- 短距离倒车目标不应引起 AMCL 跳变；
+- `/odom` 与 `/ground_truth` 的漂移应在预期范围内；
+- 倒车后必须还能继续前进。已单独测试：倒车约 −0.8 m，再前进到 +0.5 m，
+  8 s 成功。
 
-## 6. Fused odometry heading drifts while stationary
+## 6. 静止时融合里程计航向漂移
 
-**Symptom**
+**现象**
 
-The robot is stationary, but `/odom` slowly rotates and its `y` position drifts.
-AMCL then has to absorb the error, and the map pose looks worse than the wheel
-odometry.
+车没动，但 `/odom` 缓慢旋转，`y` 位置也漂。AMCL 被迫吸收这部分误差，
+地图位姿看起来比轮式里程计还差。
 
-**Root cause**
+**根因**
 
-The gyro has a small bias. Integrating `angular_velocity.z` without estimating
-that bias accumulates heading error even when the robot is not moving. In the
-simulation test, the bias was large enough to rotate the fused frame by about
-18° over a long idle period.
+陀螺存在零偏。直接积分 `angular_velocity.z` 而不估计零偏，即使车静止也会
+累积航向误差。仿真测试中，长时间静止后融合航向漂了约 18°。
 
-**Fix**
+**修复**
 
-`sensor_fusion.py` estimates the gyro bias from the first
-`gyro_bias_samples` stationary samples (default 100) and applies a small
-`gyro_deadband` (default 0.0005 rad/s):
+`sensor_fusion.py` 用前 `gyro_bias_samples` 个静止样本（默认 100）估计
+陀螺零偏，并加一个小死区 `gyro_deadband`（默认 0.0005 rad/s）：
 
 ```python
 if not bias_ready and abs(v) < stationary_speed and abs(wz) < 0.05:
@@ -266,35 +249,32 @@ if not bias_ready and abs(v) < stationary_speed and abs(wz) < 0.05:
         bias_ready = True
 ```
 
-The robot must be stationary for about two seconds after startup. On the real
-robot, keep the chassis still during this window.
+启动后车体需要静止约 2 秒；实车在这个窗口内不要推车。
 
-**Verification**
+**验证**
 
-At rest, `/odom` should stay within a few centimeters of the origin and its yaw
-should stay near zero. With the calibration enabled, the simulation test
-measured less than 0.1 m of drift while parked.
+静止时 `/odom` 应保持在原点几厘米内，yaw 接近 0。开启零偏标定后，仿真
+停车漂移小于 0.1 m。
 
-A second pitfall is publish rate: publishing fused `/odom` at IMU rate while
-copying a slower wheel-odom twist creates repeated values followed by jumps.
-Finite differences then report a false acceleration spike. Publish one fused
-sample per wheel-odom update (or interpolate the twist) instead.
+另一个坑是发布频率：用 IMU 频率发布融合 `/odom`，却复制较慢的轮速
+twist，会产生重复值然后跳变，差分出虚假的加速度尖峰。应每个轮速 odom
+更新只发布一次融合样本，或者对 twist 做插值。
 
-## 7. General Debug Order
+## 7. 通用排查顺序
 
-1. Data chain: `/clock`, `/scan`, `/odom`, `/tf`, `/cmd_vel` publisher counts.
-2. TF: `tf2_echo map base_footprint`; distinguish missing data from RViz display.
-3. Single instance: one AMCL, one controller, one planner.
-4. Localization: compare `/amcl_pose` with `/ground_truth` over time.
-5. Costmap: read the cell at the robot center; do not judge only by color.
-6. Goal reachability: check whether the goal is inside the inflated region.
-7. Controller: check `vx_min`, footprint, and MPPI critic configuration.
-8. Map: if a room fails consistently, rebuild the map before changing weights.
+1. 数据链：`/clock`、`/scan`、`/odom`、`/tf`、`/cmd_vel` 的发布者数量。
+2. TF：`tf2_echo map base_footprint`；区分“数据缺失”和“RViz 显示问题”。
+3. 单实例：只有一个 AMCL、一个控制器、一个规划器。
+4. 定位：随时间对比 `/amcl_pose` 和 `/ground_truth`。
+5. 代价地图：直接读机器人中心栅格值，不要只看颜色。
+6. 目标可达性：检查目标是否落在膨胀区内部。
+7. 控制器：检查 `vx_min`、footprint 和 MPPI critic 配置。
+8. 地图：某个房间持续失败时，先重建地图，再改权重。
 
-## 8. Useful Commands
+## 8. 常用命令
 
 ```bash
-# Nodes and topics
+# 节点和话题
 ros2 node list
 ros2 topic info /cmd_vel -v
 ros2 topic info /odom -v
@@ -303,9 +283,9 @@ ros2 topic info /odom -v
 ros2 run tf2_ros tf2_echo map base_footprint
 ros2 run tf2_ros tf2_monitor map base_footprint
 
-# Costmap center (Python/rclpy; see docs/VALIDATION.md for method)
-# A center cell of 0 is free; 253/254 indicates inscribed/lethal.
+# 代价地图中心（用 Python/rclpy；方法见 docs/VALIDATION.md）
+# 中心栅格 0 表示 free；253/254 表示 inscribed/lethal。
 
-# Cleanup
+# 清理
 ros2 run car_bringup cleanup_sim.sh
 ```

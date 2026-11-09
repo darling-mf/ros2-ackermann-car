@@ -4,8 +4,7 @@
   <name>car_bringup</name>
   <version>0.0.0</version>
   <description>
-    Launch files, Nav2/controller parameters, maps, and host-side validation
-    tools for the R5 Ackermann robot.
+    R5 阿克曼小车的启动文件、Nav2/控制器参数、地图和主机侧验证工具。
   </description>
   <maintainer email="darling@ros.com">mjf</maintainer>
   <license>Apache-2.0</license>

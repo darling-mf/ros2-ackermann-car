@@ -4,8 +4,8 @@
   <name>car_navigation</name>
   <version>0.0.0</version>
   <description>
-    Nav2 behavior trees for the R5 Ackermann chassis: no in-place Spin,
-    bounded reverse recovery, and costmap-clearing fallbacks.
+    R5 阿克曼底盘的 Nav2 行为树：不使用原地 Spin，采用有界倒车恢复和
+    代价地图清理兜底。
   </description>
   <maintainer email="darling@ros.com">mjf</maintainer>
   <license>Apache-2.0</license>

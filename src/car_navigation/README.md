@@ -1,36 +1,34 @@
 # car_navigation
 
-Nav2 behavior trees tuned for an Ackermann chassis.
+面向阿克曼底盘调过的 Nav2 行为树。
 
-## Files
+## 文件
 
-| File | Action type |
+| 文件 | 动作类型 |
 |---|---|
 | `behavior_trees/akm_navigate_to_pose.xml` | `NavigateToPose` |
 | `behavior_trees/akm_navigate_through_poses.xml` | `NavigateThroughPoses` |
 
-Both trees are injected by `car_bringup/launch/nav2.launch.py`; they are not
-selected manually in RViz.
+两棵树都由 `car_bringup/launch/nav2.launch.py` 注入，不需要在 RViz 里手动选。
 
-## Ackermann-Specific Changes
+## 阿克曼专用改动
 
-- **No `Spin` recovery.** The chassis cannot rotate at zero speed. A `Spin`
-  action would command the steering servo to its limit without moving the car.
-- **Bounded reverse.** Recovery uses `BackUp` with `backup_dist="0.60"` and
-  `backup_speed="0.12"`; this is slow enough to keep odometry stable.
-- **Costmap clearing first.** Recovery starts by clearing local/global
-  costmaps, then waits, then backs up. This order avoids immediately repeating a
-  failed local plan.
-- **Replanning rate.** `NavigateToPose` replans at 1 Hz;
-  `NavigateThroughPoses` uses 0.333 Hz because it handles a pose array.
+- **不使用 `Spin` 恢复。** 底盘不能零速自转；`Spin` 只会把舵机打到限位，
+  车本身不动。
+- **限制倒车。** 恢复动作使用 `BackUp`，参数为
+  `backup_dist="0.60"`、`backup_speed="0.12"`，速度足够慢，里程计不易发散。
+- **先清代价地图。** 恢复顺序是先清局部/全局代价地图，再等待，再倒车。
+  这样不会立刻重复上一轮失败的局部规划。
+- **重规划频率。** `NavigateToPose` 以 1 Hz 重规划；
+  `NavigateThroughPoses` 处理位姿数组，使用 0.333 Hz。
 
-## Usage
+## 使用
 
 ```bash
 ros2 launch car_bringup sim_nav2.launch.py
 ```
 
-Send a goal with the standard Nav2 action:
+用标准 Nav2 action 发送目标：
 
 ```bash
 ros2 action send_goal /navigate_to_pose \
@@ -39,6 +37,5 @@ ros2 action send_goal /navigate_to_pose \
   --feedback
 ```
 
-For multi-waypoint routes, use the `NavigateThroughPoses` action or the Nav2
-waypoint follower. Segmenting a long route into short poses is preferred over
-one long goal when the map has narrow doorways or the final yaw is constrained.
+多路点路线使用 `NavigateThroughPoses` 或 Nav2 waypoint follower。当地图门洞
+较窄、或最终 yaw 受限时，把长路径拆成多个短位姿，比发一条长目标更稳。

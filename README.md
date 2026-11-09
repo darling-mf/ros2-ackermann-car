@@ -1,131 +1,122 @@
-# ROS 2 Ackermann Car
+# ROS 2 阿克曼小车
 
-A ROS 2 Humble + Gazebo Classic Ackermann platform for a TARKBOT R5-class
-vehicle. The stack covers the full path from URDF and `ros2_control` execution
-to Nav2 global/local planning, 2D LiDAR mapping, AMCL localization, and a
-serial bridge to an STM32 lower controller.
+基于 **ROS 2 Humble + Gazebo Classic** 的 TARKBOT R5 阿克曼小车项目，覆盖从
+URDF、`ros2_control` 底盘执行，到 Nav2 全局/局部规划、2D 激光雷达建图、
+AMCL 定位，以及 STM32 下位机串口桥的完整链路。
 
-The public repository focuses on the **2D LiDAR navigation stack**. The earlier
-3D LiDAR experiments are not part of the build.
+公开仓库聚焦 **2D 激光雷达导航栈**。早期 3D 激光雷达实验不参与构建。
 
-## Highlights
+## 工程亮点
 
-- **Custom C++ `ros2_control` controller** for a rear-drive / front-steer
-  Ackermann chassis, with acceleration, steering-rate, and speed-dependent
-  steering limits.
-- **Nav2 Ackermann navigation**: Smac Hybrid planner (Reeds-Shepp), MPPI local
-  controller, and a custom behavior tree without in-place `Spin` recovery.
-- **Wheel + IMU odometry fusion** as the default odometry source. The controller
-  publishes `/wheel/odom`; one fusion node publishes `/odom` and the single
-  `odom -> base_footprint` transform.
-- **2D mapping and localization**: `slam_toolbox`, `map_saver`, AMCL, and a
-  footprint-aware costmap configuration.
-- **Embedded path**: X-Protocol serial bridge, a virtual STM32 for host tests,
-  and portable C modules for protocol parsing, a 300 ms safety watchdog, and
-  Ackermann geometry.
+- **自研 C++ `ros2_control` 控制器**：后轮驱动、前轮转向的阿克曼底盘，
+  带加速度限幅、转向速率限幅和随速度变化的转向限幅。
+- **Nav2 阿克曼导航**：Smac Hybrid 全局规划器（Reeds-Shepp）、MPPI 局部
+  控制器，以及不使用原地 `Spin` 恢复的自定义行为树。
+- **轮速 + IMU 融合里程计**：作为默认 odom 源。控制器只发布
+  `/wheel/odom`，融合节点发布 `/odom` 和唯一的
+  `odom -> base_footprint` 变换。
+- **2D 建图与定位**：`slam_toolbox`、`map_saver`、AMCL，以及带车体
+  footprint 的代价地图配置。
+- **嵌入式链路**：X-Protocol 串口桥、用于无硬件联调的虚拟 STM32，以及
+  可移植的 C 模块（协议解析、300 ms 安全看门狗、阿克曼几何）。
 
-## Validated Results
+## 实测结果
 
-All numbers below are from the Gazebo simulation with the map in
-`src/car_bringup/maps/my_room_map.yaml` and fused odometry.
+以下数据全部来自 Gazebo 仿真，使用
+`src/car_bringup/maps/my_room_map.yaml` 地图和融合里程计。
 
-| Scenario | Result | Evidence |
+| 场景 | 结果 | 证据 |
 |---|---|---|
-| Controller acceptance | PASS | `acceptance_test.py` (straight, turn, reverse) |
-| Forward goal `(2.0, 0)` | `SUCCEEDED`, 0 recoveries | AMCL vs ground truth: 3–5 cm |
-| High-speed `(4.0, 0)` at 1.0 m/s | `SUCCEEDED`, 8.0 s | localization error ≈ 5.2 cm |
-| High-speed `(6.0, 0)` at 1.0 m/s | `SUCCEEDED`, 4.8 s | localization error ≈ 6.0 cm |
-| Obstacle at `(4.0, 0)`, goal `(6.0, 0)` | `SUCCEEDED`, 12 s, 0 recoveries | static cylinder; localization error ≈ 6.7 cm |
-| Left room `(-3.0, 0.5)`, yaw −π/2 | `SUCCEEDED`, 54 s, 0 recoveries | map vs GT ≈ 19 cm; yaw-sensitive |
-| 2D mapping | map saved | 376 × 222 cells at 0.05 m |
-| Serial bridge + virtual STM32 | protocol self-checks + virtual-device run | example frame, round-trip, bad-frame resync |
-| STM32 C modules | 5/5 host tests | `firmware/openctr_b20/test/test_host.c` |
+| 控制器验收 | PASS | `acceptance_test.py`（直行、转向、倒车） |
+| 前进目标 `(2.0, 0)` | `SUCCEEDED`，0 次恢复 | AMCL 与真值误差 3–5 cm |
+| 1.0 m/s 目标 `(4.0, 0)` | `SUCCEEDED`，8.0 s | 定位误差约 5.2 cm |
+| 1.0 m/s 目标 `(6.0, 0)` | `SUCCEEDED`，4.8 s | 定位误差约 6.0 cm |
+| 障碍物 `(4.0, 0)`，目标 `(6.0, 0)` | `SUCCEEDED`，12 s，0 次恢复 | 静态圆柱；定位误差约 6.7 cm |
+| 左房间 `(-3.0, 0.5)`，yaw −π/2 | `SUCCEEDED`，54 s，0 次恢复 | 地图与真值差约 19 cm；对 yaw 敏感 |
+| 2D 建图 | 地图保存成功 | 376 × 222 栅格，分辨率 0.05 m |
+| 串口桥 + 虚拟 STM32 | 协议自检 + 虚拟设备联调 | 示例帧、回环、坏帧重同步 |
+| STM32 C 模块 | 主机测试 5/5 | `firmware/openctr_b20/test/test_host.c` |
 
-Known limitations are listed in [docs/VALIDATION.md](docs/VALIDATION.md):
-left-room navigation is still yaw-sensitive, near-wall goals can be
-unreachable, and narrow-passage stress tests are not complete.
+已知边界见 [docs/VALIDATION.md](docs/VALIDATION.md)：左房间仍对目标 yaw
+敏感，贴墙目标可能不可达，窄通道压力测试尚未完成。
 
-## System Architecture
+## 系统架构
 
 ```text
-Task layer        bt_navigator + custom behavior tree
-                  src/car_navigation/behavior_trees/akm_navigate_to_pose.xml
+任务层        bt_navigator + 自定义行为树
+              src/car_navigation/behavior_trees/akm_navigate_to_pose.xml
        |
-Planning          planner_server + SmacPlannerHybrid (Reeds-Shepp)
-                  src/car_bringup/config/nav2_params.yaml
+全局规划      planner_server + SmacPlannerHybrid（Reeds-Shepp）
+              src/car_bringup/config/nav2_params.yaml
        |
-Local control     controller_server + MPPI (Ackermann model)
-                  src/car_bringup/config/nav2_params.yaml
+局部控制      controller_server + MPPI（Ackermann 模型）
+              src/car_bringup/config/nav2_params.yaml
        |
-Velocity shaping  velocity_smoother -> /cmd_vel
+速度整形      velocity_smoother -> /cmd_vel
        |
-Chassis           r5_steering_controller (50 Hz, Ackermann IK)
-                  src/r5_steering_controller/src/r5_steering_controller.cpp
+底盘执行      r5_steering_controller（50 Hz，阿克曼逆解）
+              src/r5_steering_controller/src/r5_steering_controller.cpp
        |
-Hardware boundary gazebo_ros2_control (simulation) / SystemInterface (real car)
+硬件边界      gazebo_ros2_control（仿真）/ SystemInterface（实车）
 ```
 
-Perception and localization:
+感知与定位支路：
 
 ```text
-/scan (2D LiDAR) --> AMCL: map -> odom
-                 --> local/global costmaps
+/scan（2D 激光雷达）--> AMCL：map -> odom
+                     --> 局部/全局代价地图
 
 /wheel/odom + /imu --> sensor_fusion.py --> /odom + odom -> base_footprint
 ```
 
-The main design boundary is intentional: `r5_steering_controller` performs
-Ackermann inverse kinematics and safety limiting, but does not decide where to
-drive. `MPPI` tracks the global plan; the separate `path_tracker.py` implements
-Pure Pursuit / Stanley / LQR for controller comparison and is not part of the
-Nav2 chain.
+设计边界是刻意划分的：`r5_steering_controller` 只做阿克曼逆解和安全限幅，
+不决定“往哪走”；`MPPI` 跟踪全局路径；`path_tracker.py` 里的
+Pure Pursuit / Stanley / LQR 是控制器对比实验，不属于 Nav2 主链。
 
-## Repository Layout
+## 仓库结构
 
 ```text
 .
 ├── README.md
 ├── CONTRIBUTING.md
 ├── docs/
-│   ├── README.md                  # public documentation index
-│   ├── ARCHITECTURE.md            # layers, interfaces, data flow, file map
-│   ├── VALIDATION.md              # test method, measured results, limits
-│   └── TROUBLESHOOTING.md         # reproducible Nav2/TF/costmap/AMCL cases
+│   ├── README.md                  # 公开文档索引
+│   ├── ARCHITECTURE.md            # 分层、接口、数据流、文件定位
+│   ├── VALIDATION.md              # 测试方法、实测数据、已知边界
+│   └── TROUBLESHOOTING.md         # Nav2/TF/代价地图/AMCL 排障案例
 ├── src/
-│   ├── car_description/           # URDF/xacro, Gazebo world, RViz configs
-│   ├── car_bringup/               # launch, params, maps, test scripts
-│   ├── r5_steering_controller/    # custom C++ Ackermann controller
-│   ├── r5_serial/                 # X-Protocol bridge + virtual STM32
-│   └── car_navigation/            # Ackermann behavior trees
-├── firmware/openctr_b20/          # portable STM32 C modules + host tests
-├── patches/                       # upstream ros2_controllers patch
+│   ├── car_description/           # URDF/xacro、Gazebo 世界、RViz 配置
+│   ├── car_bringup/               # launch、参数、地图、测试脚本
+│   ├── r5_steering_controller/    # 自研 C++ 阿克曼控制器
+│   ├── r5_serial/                 # X-Protocol 串口桥 + 虚拟 STM32
+│   └── car_navigation/            # 阿克曼行为树
+├── firmware/openctr_b20/          # STM32 可移植 C 模块 + 主机测试
+├── patches/                       # 上游 ros2_controllers 补丁
 └── LICENSE
 ```
 
-Each package contains its own `README.md` with the exact files to edit and the
-interfaces it exposes.
+每个包都有自己的 `README.md`，里面写明具体改哪个文件、暴露什么接口。
 
-## Build
+## 构建
 
-### Dependencies
+### 依赖
 
-- Ubuntu 22.04, ROS 2 Humble, Gazebo Classic 11
+- Ubuntu 22.04、ROS 2 Humble、Gazebo Classic 11
 - `ros-humble-gazebo-ros2-control`
 - `ros-humble-nav2-bringup`
 - `ros-humble-slam-toolbox`
-- `ros-humble-robot-state-publisher`, `ros-humble-xacro`
+- `ros-humble-robot-state-publisher`、`ros-humble-xacro`
 
-The custom controller builds on top of `ackermann_steering_controller`. The
-patched upstream sources are archived in `patches/`; do not rely on a binary
-package if you need the steering-limit and odometry-covariance fixes.
+自研控制器基于 `ackermann_steering_controller`。对上游源码的修改归档在
+`patches/`；如果需要转向限幅和里程计协方差修复，不要只依赖二进制包。
 
-### Build the workspace
+### 构建工作区
 
 ```bash
 cd ~/car_ws
 source /opt/ros/humble/setup.bash
 
-# Optional but recommended: patched controller sources
+# 可选但推荐：带补丁的上游控制器源码
 git clone -b humble https://github.com/ros-controls/ros2_controllers.git \
   src/ros2_controllers
 git -C src/ros2_controllers checkout 65db7362
@@ -138,28 +129,27 @@ colcon build --symlink-install \
 source install/setup.bash
 ```
 
-If the upstream sources are already installed and patched in your workspace,
-the `git clone` step can be skipped. See [patches/README.md](patches/README.md)
-for the exact upstream commit and patch scope.
+如果工作区里已经安装并打好补丁，可以跳过 `git clone`。上游版本和补丁范围
+见 [patches/README.md](patches/README.md)。
 
-## Run
+## 运行
 
 ```bash
-# Gazebo + controller
+# Gazebo + 控制器
 ros2 launch car_bringup gazebo.launch.py
 
-# Gazebo + Nav2 + RViz (single Nav2 instance)
+# Gazebo + Nav2 + RViz（只能起一套 Nav2）
 ros2 launch car_bringup sim_nav2.launch.py
 
-# 2D mapping (mutually exclusive with Nav2)
+# 2D 建图（与 Nav2 互斥）
 ros2 launch car_bringup mapping.launch.py
 
-# Serial bridge with a virtual STM32 (no hardware)
+# 虚拟 STM32 + 串口桥（无需硬件）
 ros2 run r5_serial virtual_stm32
 ros2 run r5_serial serial_bridge --port /dev/pts/N
 ```
 
-Send a navigation goal:
+发送导航目标：
 
 ```bash
 ros2 action send_goal /navigate_to_pose \
@@ -168,58 +158,50 @@ ros2 action send_goal /navigate_to_pose \
   --feedback
 ```
 
-Only one process may publish `/cmd_vel` at a time. When switching between Nav2,
-mapping, and the tracker, run `ros2 run car_bringup cleanup_sim.sh` first.
+同一时间只能有一个进程发布 `/cmd_vel`。在 Nav2、建图和跟踪实验之间切换时，
+先运行 `ros2 run car_bringup cleanup_sim.sh`。
 
-## Documentation
+## 文档
 
-| Document | What it answers |
+| 文档 | 说明 |
 |---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Which package/file owns each layer, how data and TF flow |
-| [docs/VALIDATION.md](docs/VALIDATION.md) | What was tested, with which parameters and results |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Reusable diagnosis paths for Nav2, TF, costmap, and AMCL |
-| [src/r5_steering_controller/README.md](src/r5_steering_controller/README.md) | Controller limits, parameters, and test hooks |
-| [src/car_bringup/README.md](src/car_bringup/README.md) | Launch modes, params, maps, and scripts |
-| [src/r5_serial/README.md](src/r5_serial/README.md) | Serial protocol and virtual STM32 |
-| [firmware/openctr_b20/README.md](firmware/openctr_b20/README.md) | STM32 integration and host tests |
-| [patches/README.md](patches/README.md) | Upstream controller patch and apply steps |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 每层由哪个包/文件负责，数据和 TF 怎么流 |
+| [docs/VALIDATION.md](docs/VALIDATION.md) | 测了什么、用什么参数、结果是多少 |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Nav2、TF、代价地图、AMCL 的可复用排查路径 |
+| [src/r5_steering_controller/README.md](src/r5_steering_controller/README.md) | 控制器限幅、参数和测试入口 |
+| [src/car_bringup/README.md](src/car_bringup/README.md) | 启动模式、参数、地图和脚本 |
+| [src/r5_serial/README.md](src/r5_serial/README.md) | 串口协议和虚拟 STM32 |
+| [firmware/openctr_b20/README.md](firmware/openctr_b20/README.md) | STM32 集成点和主机测试 |
+| [patches/README.md](patches/README.md) | 上游控制器补丁和应用步骤 |
 
-## Design Notes
+## 设计说明
 
-- **Command-layer post-processing.** The parent controller overwrites reference
-  interfaces every cycle, so acceleration and steering limits are applied in
-  `update()` after the parent output. This keeps the patch small and avoids
-  copying the upstream kinematics.
-- **Speed-dependent steering limit.** The lateral acceleration is bounded by
-  `a_y = v^2 * tan(phi) / L`. At low speed the steering range is preserved; at
-  high speed the command is limited before it reaches the servo model.
-- **One TF owner.** Enabling `enable_odom_tf` in both the controller and the
-  fusion node creates two `odom -> base_footprint` authorities. The controller
-  is configured to publish `/wheel/odom` only. The fusion node also estimates
-  the stationary gyro bias so the fused heading does not drift while parked.
-- **No in-place spin.** An Ackermann chassis cannot rotate at zero speed. The
-  custom behavior tree removes `Spin` and uses bounded `BackUp` /
-  `DriveOnHeading` recovery instead.
-- **Measured, not guessed.** Controller tests, AMCL-vs-ground-truth error, and
-  costmap cell values are recorded in [docs/VALIDATION.md](docs/VALIDATION.md).
+- **命令层后处理**：父控制器每个周期都会覆盖 reference 接口，因此加速度和
+  转向限幅放在父类输出之后的 `update()` 里。这样补丁小，也不用复制上游
+  运动学代码。
+- **速度相关转向限幅**：用 `a_y = v^2 * tan(phi) / L` 约束侧向加速度。
+  低速保留完整转向范围，高速在进入舵机模型前就限制指令。
+- **只有一个 TF 发布者**：控制器和融合节点同时打开 `enable_odom_tf` 会产生
+  两套 `odom -> base_footprint`。控制器只发布 `/wheel/odom`；融合节点同时
+  估计静止陀螺零偏，避免停车时航向漂移。
+- **不做原地旋转**：阿克曼底盘不能零速自转。自定义行为树去掉 `Spin`，
+  改用有界的 `BackUp` / `DriveOnHeading` 恢复。
+- **数据说话**：控制器验收、AMCL 与真值误差、代价地图栅格值都记录在
+  [docs/VALIDATION.md](docs/VALIDATION.md)。
 
-## Status and Roadmap
+## 当前状态与路线
 
-- Simulation: control, forward navigation, 1.0 m/s navigation, 2D mapping,
-  fused odometry, and serial protocol are validated.
-- Open simulation work: left-room paths with arbitrary yaw (yaw=0 still loops),
-  near-wall goal handling, narrow passages, and moving-obstacle prediction.
-- Real vehicle: hardware interface, wheel/IMU calibration, and full integration
-  remain. The current repository is a simulation-validated baseline, not a
-  finished product.
+- 仿真已验证：控制、前进导航、1.0 m/s 导航、2D 建图、融合里程计、串口协议。
+- 仿真待完善：任意 yaw 的左房间路径（yaw=0 仍会绕远）、贴墙目标、窄通道、
+  移动障碍预测。
+- 实车待完成：硬件接口、轮径/IMU 标定、整机集成。当前仓库是仿真验证过的
+  基线，不是完成品。
 
-## Contributing
+## 参与开发
 
-Build/test commands, patch policy, and commit conventions are in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+构建/测试命令、补丁规范和提交约定见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-## License
+## 许可证
 
-Original code in this repository is released under the Apache License 2.0; see
-[LICENSE](LICENSE). Third-party components retain their original licenses.
-Vendor firmware and manuals are not redistributed in this repository.
+本仓库自研代码使用 Apache License 2.0，见 [LICENSE](LICENSE)。
+第三方组件遵循各自原始许可证；厂家固件和手册不在本仓库分发。

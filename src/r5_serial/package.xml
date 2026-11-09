@@ -4,9 +4,8 @@
   <name>r5_serial</name>
   <version>0.1.0</version>
   <description>
-    X-Protocol serial bridge between ROS 2 and the OpenCTR B20 lower
-    controller, plus a virtual STM32 over a pty for hardware-free integration
-    testing.
+    ROS 2 与 OpenCTR B20 下位机之间的 X-Protocol 串口桥，并提供基于 pty 的
+    虚拟 STM32，用于无硬件联调。
   </description>
   <maintainer email="darling@ros.com">mjf</maintainer>
   <license>Apache-2.0</license>
